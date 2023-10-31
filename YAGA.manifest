@@ -1,0 +1,13 @@
+{
+	"autodeskProduct":	"Fusion360",
+	"type":	"addin",
+	"id":	"d6a4a538-c66d-492b-92f5-2279d3c0eee1",
+	"author":	"Joe Ferner",
+	"description":	{
+		"":	"Yet another gear add-in"
+	},
+	"version":	"0.1.0",
+	"runOnStartup":	true,
+	"supportedOS":	"windows|mac",
+	"editEnabled":	true
+}
