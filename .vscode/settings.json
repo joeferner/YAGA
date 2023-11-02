@@ -1,9 +1,12 @@
 {
-	"python.autoComplete.extraPaths":	["C:/Users/Joe Ferner/AppData/Roaming/Autodesk/Autodesk Fusion 360/API/Python/defs"],
-	"python.analysis.extraPaths":	["C:/Users/Joe Ferner/AppData/Roaming/Autodesk/Autodesk Fusion 360/API/Python/defs"],
+	"python.autoComplete.extraPaths": [
+		"C:/Users/Joe Ferner/AppData/Roaming/Autodesk/Autodesk Fusion 360/API/Python/defs"
+	],
+	"python.analysis.extraPaths": [
+		"C:/Users/Joe Ferner/AppData/Roaming/Autodesk/Autodesk Fusion 360/API/Python/defs"
+	],
 	"python.defaultInterpreterPath": "C:/Users/Joe Ferner/AppData/Local/Autodesk/webdeploy/production/fd081b4c15f2fc37998034adb20de16163fc298f/Python/python.exe",
 	"[python]": {
-		"editor.defaultFormatter": "ms-python.black-formatter"
-	},
-	"python.formatting.provider": "none"
+    "editor.defaultFormatter": "charliermarsh.ruff"
+  }
 }
