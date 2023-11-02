@@ -108,7 +108,7 @@ def command_run(args: adsk.core.CommandEventArgs):
     number_of_teeth_value: adsk.core.ValueCommandInput = inputs.itemById("number_of_teeth")
     module_value: adsk.core.ValueCommandInput = inputs.itemById("module")
     gear_height_value: adsk.core.ValueCommandInput = inputs.itemById("gear_height")
-    curve_divisions = 10
+    curve_point_count = 10
 
     unitsMgr = app.activeProduct.unitsManager
     pressure_angle = unitsMgr.evaluateExpression(pressure_angle_value.expression, "deg")
@@ -124,12 +124,13 @@ def command_run(args: adsk.core.CommandEventArgs):
     base_diameter = pitch_diameter * math.cos(pressure_angle)
     outside_diameter = (number_of_teeth + 2) / diametral_pitch
 
-    pitch_diameter_expr = f"({number_of_teeth_value.expression}) * ({module_value.expression})"
-    base_diameter_expr = f"({pitch_diameter_expr}) * cos({pressure_angle_value.expression})"
-    root_diameter_expr = f"(({number_of_teeth_value.expression}) * ({module_value.expression})) - (2 * (1.25 / (1 / ({module_value.expression}))))"
-    outside_diameter_expr = f"(({number_of_teeth_value.expression}) + 2) / (1 / ({module_value.expression}))"
-    base_circumference_expr = f"2 * {math.pi} * (({base_diameter_expr}) / 2)"
-    tooth_thickness_expr = f"({base_circumference_expr}) / (({number_of_teeth_value.expression}) * 2)"
+    pitch_diameter_expr = f"( ({number_of_teeth_value.expression}) * ({module_value.expression}) )"
+    base_diameter_expr = f"( {pitch_diameter_expr} * cos({pressure_angle_value.expression}) )"
+    base_radius_expr = f"( {base_diameter_expr} / 2 )"
+    root_diameter_expr = f"( (({number_of_teeth_value.expression}) * ({module_value.expression})) - (2 * (1.25 / (1 / ({module_value.expression})))) )"
+    outside_diameter_expr = f"( (({number_of_teeth_value.expression}) + 2) / (1 / ({module_value.expression})) )"
+    base_circumference_expr = f"( 2 * {math.pi} * ({base_diameter_expr} / 2) )"
+    tooth_thickness_expr = f"( {base_circumference_expr} / (({number_of_teeth_value.expression}) * 2) )"
 
     # component
     comp = futil.create_new_component()
@@ -188,41 +189,72 @@ def command_run(args: adsk.core.CommandEventArgs):
     )
     d.parameter.expression = pitch_diameter_expr
 
+    # involute curve mirror line
+    involute_curve_mirror_line = base_sketch.sketchCurves.sketchLines.addByTwoPoints(
+        center_point, adsk.core.Point3D.create(1, 0, 0)
+    )
+    involute_curve_mirror_line.isConstruction = True
+    # base_sketch.geometricConstraints.addCoincident(involute_curve_mirror_line.startSketchPoint, center_point)
+    base_sketch.geometricConstraints.addCoincident(involute_curve_mirror_line.endSketchPoint, outside_circle)
+    base_sketch.geometricConstraints.addHorizontal(involute_curve_mirror_line)
+
     # involute curve
-    step = int(100 / curve_divisions)
     curve_points = adsk.core.ObjectCollection.create()
-    for t in range(0, 100, step):
-        curve_points.add(adsk.core.Point3D.create(t, t, 0))
-        
+    for t in range(0, curve_point_count):
+        curve_points.add(adsk.core.Point3D.create(t + 1, t + 1, 0))
+
     spline = base_sketch.sketchCurves.sketchFittedSplines.add(curve_points)
-    
-    # https://www.mcadcentral.com/threads/how-to-draw-involute-curve.12089/
+
     t = 0
+    involute_size_expr = f"( ({outside_diameter_expr} - {base_diameter_expr}) / 2 )"
     for pt in spline.fitPoints:
-        r_expr = f"(({pitch_diameter_expr}) / 2) * cos({pressure_angle_value.expression})"
-        futil.log(f'r_expr {((pitch_diameter) / 2) * math.cos(pressure_angle)}')
-        theta_expr = f"{t / 100} * 90"
-        theta_rad_expr = f"({theta_expr}) * ({math.pi} / 180)"
-        x_expr = f"{r_expr} * cos({theta_expr}) + {r_expr} * {theta_rad_expr} * sin({theta_expr})"
-        y_expr = f"{r_expr} * sin({theta_expr}) - {r_expr} * {theta_rad_expr} * cos({theta_expr})"
-        
+        if t == 0:
+            t_expr = "0"
+        else:
+            t_expr = f"( (({involute_size_expr} / ({curve_point_count} - 1)) * {t}) )"
+
+        dist_from_center_to_point_expr = f"( ({base_diameter_expr} / 2) + {t_expr} )"
+
+        # Calculate the other side of the right-angle triangle defined by the base circle and the current distance radius.
+        # This is also the length of the involute chord as it comes off of the base circle.
+        triangle_side_expr = f"( sqrt( ({dist_from_center_to_point_expr} ^ 2) - ({base_radius_expr} ^ 2) ) )"
+
+        # Calculate the angle of the involute.
+        alpha_expr = f"( {triangle_side_expr} / {base_radius_expr} )"
+
+        # Calculate the angle where the current involute point is.
+        theta_expr = f"( {alpha_expr} - acos({base_radius_expr} / {dist_from_center_to_point_expr}) )"
+
+        # Calculate the coordinates of the involute point.
+        # x_expr = f"( {dist_from_center_to_point_expr} * cos({theta_expr}) )"
+        # y_expr = "1" # f"( {dist_from_center_to_point_expr} * sin({theta_expr}) )"
+
+        theta_expr = f"sqrt(100 * {dist_from_center_to_point_expr})".replace('mm', '')
+
+        line = base_sketch.sketchCurves.sketchLines.addByTwoPoints(center_point, pt.geometry)
+        line.isConstruction = True
+        # base_sketch.geometricConstraints.addCoincident(line.startSketchPoint, center_point)
+        base_sketch.geometricConstraints.addCoincident(line.endSketchPoint, pt)
+
         d = base_sketch.sketchDimensions.addDistanceDimension(
             center_point,
             pt,
-            adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation,
+            adsk.fusion.DimensionOrientations.AlignedDimensionOrientation,
             adsk.core.Point3D.create(1, 1, 0),
         )
-        d.parameter.expression = x_expr
-        
-        d = base_sketch.sketchDimensions.addDistanceDimension(
-            center_point,
-            pt,
-            adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
-            adsk.core.Point3D.create(1, 1, 0),
+        d.parameter.expression = dist_from_center_to_point_expr
+
+        d = base_sketch.sketchDimensions.addAngularDimension(
+            involute_curve_mirror_line,
+            line,
+            adsk.core.Point3D.create(10, 0.1, 0),
         )
-        d.parameter.expression = y_expr
-        
-        t = t + step
+        try:
+            d.parameter.expression = theta_expr
+        except:
+            futil.log(f"invalid expr {theta_expr}")
+
+        t = t + 1
 
     # finish up
     base_sketch.isComputeDeferred = False
