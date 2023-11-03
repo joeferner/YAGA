@@ -132,6 +132,10 @@ def command_run(args: adsk.core.CommandEventArgs):
     outside_diameter_expr = f"( (({number_of_teeth_value.expression}) + 2) / (1 / ({module_value.expression})) )"
     base_circumference_expr = f"( 2 * PI * ({base_diameter_expr} / 2) )"
     tooth_thickness_expr = f"( {base_circumference_expr} / (({number_of_teeth_value.expression}) * 2) )"
+    # TODO this isn't quite right need to compensate for pitch angle
+    involute_curve_mirror_offset_angle_expr = (
+        f"360 deg / ({number_of_teeth_value.expression}) / 2 / 2"
+    )  # /2 tooth and groove /2 half a tooth
 
     # component
     comp = futil.create_new_component()
@@ -207,7 +211,7 @@ def command_run(args: adsk.core.CommandEventArgs):
     sketch.geometricConstraints.addCoincident(radius_line.startSketchPoint, center_point)
     sketch.geometricConstraints.addCoincident(radius_line.endSketchPoint, base_circle)
 
-    # TODO manually draw these to avoid underconstrained issue
+    # TODO manually draw these to avoid under constrained issue
     circular_pattern_input = sketch.geometricConstraints.createCircularPatternInput(
         [radius_line], radius_line.startSketchPoint
     )
@@ -222,7 +226,7 @@ def command_run(args: adsk.core.CommandEventArgs):
         line: adsk.fusion.SketchLine = entity
         radius_lines.append(line)
 
-    curve_points = adsk.core.ObjectCollection.create()
+    spline_points = adsk.core.ObjectCollection.create()
     for i in range(len(radius_lines) - 1):
         radius_line: adsk.fusion.SketchLine = radius_lines[i]
 
@@ -232,7 +236,7 @@ def command_run(args: adsk.core.CommandEventArgs):
         )
         tangent_line.isConstruction = True
         sketch.geometricConstraints.addTangent(base_circle, tangent_line)
-        curve_points.add(tangent_line.endSketchPoint)
+        spline_points.add(tangent_line.endSketchPoint)
 
         d = sketch.sketchDimensions.addDistanceDimension(
             tangent_line.startSketchPoint,
@@ -243,7 +247,7 @@ def command_run(args: adsk.core.CommandEventArgs):
         d.parameter.expression = (
             f"{len(radius_lines) - i - 1} * PI * {base_diameter_expr} * ({tangent_line_interval_deg} deg / 360 deg)"
         )
-    curve_points.add(radius_lines[len(radius_lines) - 1].endSketchPoint)
+    spline_points.add(radius_lines[len(radius_lines) - 1].endSketchPoint)
 
     # create dimension to place spline in correct location
     d = sketch.sketchDimensions.addAngularDimension(
@@ -251,28 +255,41 @@ def command_run(args: adsk.core.CommandEventArgs):
         radius_lines[len(radius_lines) - 1],
         adsk.core.Point3D.create(outside_diameter, -1, 0),
     )
-    # TODO this isn't quite right need to compinsate for pitch angle
-    d.parameter.expression = (
-        f"360 / ({number_of_teeth_value.expression}) / 2 / 2"
-    )  # /2 tooth and groove /2 half a tooth
+    d.parameter.expression = involute_curve_mirror_offset_angle_expr
 
-    # create involute spline construction
-    spline_construction = sketch.sketchCurves.sketchFittedSplines.add(curve_points)
-    spline_construction.isConstruction = True
+    # create involute spline
+    spline = sketch.sketchCurves.sketchFittedSplines.add(spline_points)
 
-    # create involute spline copy of construction so we can trim it
-    curve_points = adsk.core.ObjectCollection.create()
-    for i in range(len(spline_construction.fitPoints)):
-        pt = spline_construction.fitPoints[i].geometry
-        curve_points.add(adsk.core.Point3D.create(pt.x + 0.1, pt.y + 0.1, pt.z))
-    spline = sketch.sketchCurves.sketchFittedSplines.add(curve_points)
+    # create involute spline mirror radius
+    spline_mirror_radius_line = sketch.sketchCurves.sketchLines.addByTwoPoints(
+        adsk.core.Point3D.create(0, 0, 0),
+        adsk.core.Point3D.create(base_diameter / 2.0, 1, 0),
+    )
+    spline_mirror_radius_line.isConstruction = True
+    sketch.geometricConstraints.addCoincident(spline_mirror_radius_line.startSketchPoint, center_point)
+    sketch.geometricConstraints.addCoincident(spline_mirror_radius_line.endSketchPoint, base_circle)
+    d = sketch.sketchDimensions.addAngularDimension(
+        involute_curve_mirror_line,
+        spline_mirror_radius_line,
+        adsk.core.Point3D.create(outside_diameter, 1, 0),
+    )
+    d.parameter.expression = involute_curve_mirror_offset_angle_expr
+    
+    # create involute spline mirror
+    mirror_spline, _ = futil.mirror_sketch_spline(sketch, spline, involute_curve_mirror_line)
 
-    for i in range(len(spline.fitPoints)):
-        spline_construction_pt = spline_construction.fitPoints[i]
-        spline_pt = spline.fitPoints[i]
-        sketch.geometricConstraints.addCoincident(spline_pt, spline_construction_pt)
-        
-    # spline.trim()
+    # create tooth top land
+    tooth_top_land = sketch.sketchCurves.sketchArcs.addByCenterStartSweep(
+        center_point, adsk.core.Point3D.create(outside_diameter, -1, 0), 0.1
+    )
+    sketch.geometricConstraints.addCoincident(tooth_top_land.centerSketchPoint, center_point)
+    d = sketch.sketchDimensions.addDiameterDimension(
+        tooth_top_land,
+        adsk.core.Point3D.create(outside_diameter, 0, 0),
+    )
+    d.parameter.expression = outside_diameter_expr
+    sketch.geometricConstraints.addCoincident(tooth_top_land.startSketchPoint, spline)
+    sketch.geometricConstraints.addCoincident(tooth_top_land.endSketchPoint, mirror_spline)
 
     # finish up
     sketch.isComputeDeferred = False
