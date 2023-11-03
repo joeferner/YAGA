@@ -108,7 +108,8 @@ def command_run(args: adsk.core.CommandEventArgs):
     number_of_teeth_value: adsk.core.ValueCommandInput = inputs.itemById("number_of_teeth")
     module_value: adsk.core.ValueCommandInput = inputs.itemById("module")
     gear_height_value: adsk.core.ValueCommandInput = inputs.itemById("gear_height")
-    curve_point_count = 10
+    tangent_line_count = 10
+    tangent_line_interval_deg = 5
 
     unitsMgr = app.activeProduct.unitsManager
     pressure_angle = unitsMgr.evaluateExpression(pressure_angle_value.expression, "deg")
@@ -129,7 +130,7 @@ def command_run(args: adsk.core.CommandEventArgs):
     base_radius_expr = f"( {base_diameter_expr} / 2 )"
     root_diameter_expr = f"( (({number_of_teeth_value.expression}) * ({module_value.expression})) - (2 * (1.25 / (1 / ({module_value.expression})))) )"
     outside_diameter_expr = f"( (({number_of_teeth_value.expression}) + 2) / (1 / ({module_value.expression})) )"
-    base_circumference_expr = f"( 2 * {math.pi} * ({base_diameter_expr} / 2) )"
+    base_circumference_expr = f"( 2 * PI * ({base_diameter_expr} / 2) )"
     tooth_thickness_expr = f"( {base_circumference_expr} / (({number_of_teeth_value.expression}) * 2) )"
 
     # component
@@ -137,127 +138,144 @@ def command_run(args: adsk.core.CommandEventArgs):
 
     # sketch
     sketch_plane = comp.xYConstructionPlane
-    base_sketch = comp.sketches.add(sketch_plane)
-    base_sketch.isComputeDeferred = True
-    base_sketch.name = "SpurGear1"
-    center_point = base_sketch.originPoint
+    sketch = comp.sketches.add(sketch_plane)
+    sketch.isComputeDeferred = True
+    sketch.name = "SpurGear1"
+    center_point = sketch.originPoint
 
     # root circle
-    root_circle = base_sketch.sketchCurves.sketchCircles.addByCenterRadius(
+    root_circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(
         adsk.core.Point3D.create(0, 0, 0), root_diameter / 2.0
     )
-    base_sketch.geometricConstraints.addCoincident(root_circle.centerSketchPoint, center_point)
-    d = base_sketch.sketchDimensions.addDiameterDimension(
+    sketch.geometricConstraints.addCoincident(root_circle.centerSketchPoint, center_point)
+    d = sketch.sketchDimensions.addDiameterDimension(
         root_circle,
         adsk.core.Point3D.create(-root_diameter / 1.5, root_diameter / 1.5, 0),
     )
     d.parameter.expression = root_diameter_expr
 
     # base circle
-    base_circle = base_sketch.sketchCurves.sketchCircles.addByCenterRadius(
+    base_circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(
         adsk.core.Point3D.create(0, 0, 0), base_diameter / 2.0
     )
     base_circle.isConstruction = True
-    base_sketch.geometricConstraints.addCoincident(base_circle.centerSketchPoint, center_point)
-    d = base_sketch.sketchDimensions.addDiameterDimension(
+    sketch.geometricConstraints.addCoincident(base_circle.centerSketchPoint, center_point)
+    d = sketch.sketchDimensions.addDiameterDimension(
         base_circle,
         adsk.core.Point3D.create(-root_diameter / 1.5, root_diameter / 1.4, 0),
     )
     d.parameter.expression = base_diameter_expr
 
-    # outside circle
-    outside_circle = base_sketch.sketchCurves.sketchCircles.addByCenterRadius(
-        adsk.core.Point3D.create(0, 0, 0), outside_diameter / 2.0
-    )
-    outside_circle.isConstruction = True
-    base_sketch.geometricConstraints.addCoincident(outside_circle.centerSketchPoint, center_point)
-    d = base_sketch.sketchDimensions.addDiameterDimension(
-        outside_circle,
-        adsk.core.Point3D.create(-root_diameter / 1.5, root_diameter / 1.3, 0),
-    )
-    d.parameter.expression = outside_diameter_expr
-
     # pitch circle
-    pitch_circle = base_sketch.sketchCurves.sketchCircles.addByCenterRadius(
+    pitch_circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(
         adsk.core.Point3D.create(0, 0, 0), pitch_diameter / 2.0
     )
     pitch_circle.isConstruction = True
-    base_sketch.geometricConstraints.addCoincident(pitch_circle.centerSketchPoint, center_point)
-    d = base_sketch.sketchDimensions.addDiameterDimension(
+    sketch.geometricConstraints.addCoincident(pitch_circle.centerSketchPoint, center_point)
+    d = sketch.sketchDimensions.addDiameterDimension(
         pitch_circle,
         adsk.core.Point3D.create(-root_diameter / 1.5, root_diameter / 1.2, 0),
     )
     d.parameter.expression = pitch_diameter_expr
 
+    # outside circle
+    outside_circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(
+        adsk.core.Point3D.create(0, 0, 0), outside_diameter / 2.0
+    )
+    outside_circle.isConstruction = True
+    sketch.geometricConstraints.addCoincident(outside_circle.centerSketchPoint, center_point)
+    d = sketch.sketchDimensions.addDiameterDimension(
+        outside_circle,
+        adsk.core.Point3D.create(-root_diameter / 1.5, root_diameter / 1.3, 0),
+    )
+    d.parameter.expression = outside_diameter_expr
+
     # involute curve mirror line
-    involute_curve_mirror_line = base_sketch.sketchCurves.sketchLines.addByTwoPoints(
+    involute_curve_mirror_line = sketch.sketchCurves.sketchLines.addByTwoPoints(
         center_point, adsk.core.Point3D.create(1, 0, 0)
     )
     involute_curve_mirror_line.isConstruction = True
-    # base_sketch.geometricConstraints.addCoincident(involute_curve_mirror_line.startSketchPoint, center_point)
-    base_sketch.geometricConstraints.addCoincident(involute_curve_mirror_line.endSketchPoint, outside_circle)
-    base_sketch.geometricConstraints.addHorizontal(involute_curve_mirror_line)
+    sketch.geometricConstraints.addCoincident(involute_curve_mirror_line.endSketchPoint, outside_circle)
+    sketch.geometricConstraints.addHorizontal(involute_curve_mirror_line)
 
-    # involute curve
+    # involute curve center to tangent lines
+    radius_line = sketch.sketchCurves.sketchLines.addByTwoPoints(
+        adsk.core.Point3D.create(0, 0, 0),
+        adsk.core.Point3D.create(base_diameter / 2.0, 0, 0),
+    )
+    radius_line.isConstruction = True
+    sketch.geometricConstraints.addCoincident(radius_line.startSketchPoint, center_point)
+    sketch.geometricConstraints.addCoincident(radius_line.endSketchPoint, base_circle)
+
+    # TODO manually draw these to avoid underconstrained issue
+    circular_pattern_input = sketch.geometricConstraints.createCircularPatternInput(
+        [radius_line], radius_line.startSketchPoint
+    )
+    circular_pattern_input.quantity = adsk.core.ValueInput.createByString(f"{tangent_line_count}")
+    circular_pattern_input.totalAngle = adsk.core.ValueInput.createByString(
+        f"-{(tangent_line_count - 1) * tangent_line_interval_deg} deg"
+    )
+    circular_pattern = sketch.geometricConstraints.addCircularPattern(circular_pattern_input)
+
+    radius_lines: list(adsk.fusion.SketchLine) = [radius_line]
+    for entity in circular_pattern.createdEntities:
+        line: adsk.fusion.SketchLine = entity
+        radius_lines.append(line)
+
     curve_points = adsk.core.ObjectCollection.create()
-    for t in range(0, curve_point_count):
-        curve_points.add(adsk.core.Point3D.create(t + 1, t + 1, 0))
+    for i in range(len(radius_lines) - 1):
+        radius_line: adsk.fusion.SketchLine = radius_lines[i]
 
-    spline = base_sketch.sketchCurves.sketchFittedSplines.add(curve_points)
+        tangent_line = sketch.sketchCurves.sketchLines.addByTwoPoints(
+            radius_line.endSketchPoint,
+            adsk.core.Point3D.create(base_diameter, -base_diameter, 0),
+        )
+        tangent_line.isConstruction = True
+        sketch.geometricConstraints.addTangent(base_circle, tangent_line)
+        curve_points.add(tangent_line.endSketchPoint)
 
-    t = 0
-    involute_size_expr = f"( ({outside_diameter_expr} - {base_diameter_expr}) / 2 )"
-    for pt in spline.fitPoints:
-        if t == 0:
-            t_expr = "0"
-        else:
-            t_expr = f"( (({involute_size_expr} / ({curve_point_count} - 1)) * {t}) )"
-
-        dist_from_center_to_point_expr = f"( ({base_diameter_expr} / 2) + {t_expr} )"
-
-        # Calculate the other side of the right-angle triangle defined by the base circle and the current distance radius.
-        # This is also the length of the involute chord as it comes off of the base circle.
-        triangle_side_expr = f"( sqrt( ({dist_from_center_to_point_expr} ^ 2) - ({base_radius_expr} ^ 2) ) )"
-
-        # Calculate the angle of the involute.
-        alpha_expr = f"( {triangle_side_expr} / {base_radius_expr} )"
-
-        # Calculate the angle where the current involute point is.
-        theta_expr = f"( {alpha_expr} - acos({base_radius_expr} / {dist_from_center_to_point_expr}) )"
-
-        # Calculate the coordinates of the involute point.
-        # x_expr = f"( {dist_from_center_to_point_expr} * cos({theta_expr}) )"
-        # y_expr = "1" # f"( {dist_from_center_to_point_expr} * sin({theta_expr}) )"
-
-        theta_expr = f"sqrt(100 * {dist_from_center_to_point_expr})".replace('mm', '')
-
-        line = base_sketch.sketchCurves.sketchLines.addByTwoPoints(center_point, pt.geometry)
-        line.isConstruction = True
-        # base_sketch.geometricConstraints.addCoincident(line.startSketchPoint, center_point)
-        base_sketch.geometricConstraints.addCoincident(line.endSketchPoint, pt)
-
-        d = base_sketch.sketchDimensions.addDistanceDimension(
-            center_point,
-            pt,
+        d = sketch.sketchDimensions.addDistanceDimension(
+            tangent_line.startSketchPoint,
+            tangent_line.endSketchPoint,
             adsk.fusion.DimensionOrientations.AlignedDimensionOrientation,
-            adsk.core.Point3D.create(1, 1, 0),
+            adsk.core.Point3D.create(base_diameter, -base_diameter, 0),
         )
-        d.parameter.expression = dist_from_center_to_point_expr
-
-        d = base_sketch.sketchDimensions.addAngularDimension(
-            involute_curve_mirror_line,
-            line,
-            adsk.core.Point3D.create(10, 0.1, 0),
+        d.parameter.expression = (
+            f"{len(radius_lines) - i - 1} * PI * {base_diameter_expr} * ({tangent_line_interval_deg} deg / 360 deg)"
         )
-        try:
-            d.parameter.expression = theta_expr
-        except:
-            futil.log(f"invalid expr {theta_expr}")
+    curve_points.add(radius_lines[len(radius_lines) - 1].endSketchPoint)
 
-        t = t + 1
+    # create dimension to place spline in correct location
+    d = sketch.sketchDimensions.addAngularDimension(
+        involute_curve_mirror_line,
+        radius_lines[len(radius_lines) - 1],
+        adsk.core.Point3D.create(outside_diameter, -1, 0),
+    )
+    # TODO this isn't quite right need to compinsate for pitch angle
+    d.parameter.expression = (
+        f"360 / ({number_of_teeth_value.expression}) / 2 / 2"
+    )  # /2 tooth and groove /2 half a tooth
+
+    # create involute spline construction
+    spline_construction = sketch.sketchCurves.sketchFittedSplines.add(curve_points)
+    spline_construction.isConstruction = True
+
+    # create involute spline copy of construction so we can trim it
+    curve_points = adsk.core.ObjectCollection.create()
+    for i in range(len(spline_construction.fitPoints)):
+        pt = spline_construction.fitPoints[i].geometry
+        curve_points.add(adsk.core.Point3D.create(pt.x + 0.1, pt.y + 0.1, pt.z))
+    spline = sketch.sketchCurves.sketchFittedSplines.add(curve_points)
+
+    for i in range(len(spline.fitPoints)):
+        spline_construction_pt = spline_construction.fitPoints[i]
+        spline_pt = spline.fitPoints[i]
+        sketch.geometricConstraints.addCoincident(spline_pt, spline_construction_pt)
+        
+    # spline.trim()
 
     # finish up
-    base_sketch.isComputeDeferred = False
+    sketch.isComputeDeferred = False
 
 
 # This event handler is called when the user changes anything in the command dialog
