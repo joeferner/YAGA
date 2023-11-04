@@ -131,6 +131,8 @@ def command_run(args: adsk.core.CommandEventArgs, preview: bool):
     module_value = cast(adsk.core.ValueCommandInput, inputs.itemById("module"))
     thickness = cast(adsk.core.ValueCommandInput, inputs.itemById("thickness"))
 
+    name = futil.find_next_name(design, "SpurGear")
+
     start_time = time.time()
     SpurGear.create_component(
         app,
@@ -139,7 +141,7 @@ def command_run(args: adsk.core.CommandEventArgs, preview: bool):
         module_value=module_value,
         gear_height_value=thickness,
         preview=preview,
-        name="SpurGear1"
+        name=name
     )
     end_time = time.time()
     futil.log(f'create took {end_time - start_time}')

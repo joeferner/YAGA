@@ -105,3 +105,33 @@ def find_smallest_profile(profiles: list[adsk.fusion.Profile]) -> adsk.fusion.Pr
             smallest_profile = profile
             smallest_profile_area = area
     return smallest_profile
+
+
+def find_next_name(design: adsk.fusion.Design, prefix: str) -> str | None:
+    matching_names = find_names_with_prefix(design, prefix)
+
+    def is_valid_name(proposed_name: str) -> bool:
+        for matching_name in matching_names:
+            if matching_name.startswith(proposed_name):
+                return False
+        return True
+
+    for i in range(1, 100000):
+        proposed_name = f'{prefix}{i}'
+        if is_valid_name(proposed_name):
+            return proposed_name
+
+    return None
+
+
+def find_names_with_prefix(design: adsk.fusion.Design, prefix: str) -> list[str]:
+    results: list[str] = []
+    for occ in design.rootComponent.occurrences:
+        for sketch in occ.component.sketches:
+            for dim in sketch.sketchDimensions:
+                if dim.parameter.name.startswith(prefix):
+                    results.append(dim.parameter.name)
+        for extrude in occ.component.features.extrudeFeatures:
+            if extrude.name.startswith(prefix):
+                results.append(extrude.name)
+    return results

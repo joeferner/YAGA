@@ -167,7 +167,7 @@ class SpurGear:
             dedendum_line_a = cast(adsk.fusion.SketchLine, sketch_tooth.project(dedendum_line_a).item(0))
             dedendum_line_b = cast(adsk.fusion.SketchLine, sketch_tooth.project(dedendum_line_b).item(0))
 
-            tooth_top_land = SpurGear.__create_tooth_top_land(
+            SpurGear.__create_tooth_top_land(
                 sketch_tooth,
                 center_point,
                 spline,
@@ -184,7 +184,6 @@ class SpurGear:
                 mirror_spline,
                 root_circle,
                 base_circle,
-                tooth_top_land,
                 dedendum_line_a,
                 dedendum_line_b,
                 name
@@ -453,7 +452,6 @@ class SpurGear:
             mirror_spline: adsk.fusion.SketchFittedSpline,
             root_circle: adsk.fusion.SketchCircle,
             base_circle: adsk.fusion.SketchCircle,
-            tooth_top_land: adsk.fusion.SketchArc,
             dedendum_line_a: adsk.fusion.SketchLine,
             dedendum_line_b: adsk.fusion.SketchLine,
             name: str | None
