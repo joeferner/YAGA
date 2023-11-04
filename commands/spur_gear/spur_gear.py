@@ -95,31 +95,27 @@ class SpurGear:
             name_prefix
         )
         involute_curve_mirror_line = SpurGear.__create_involute_curve_mirror_line(sketch, center_point, outside_circle)
-        radius_line = SpurGear.__create_involute_curve_radius_construction_lines(
-            sketch,
-            center_point,
-            base_circle,
-            base_diameter
-        )
         spline = SpurGear.__create_involute_curve(
             sketch,
             base_circle,
-            radius_line,
             involute_curve_mirror_line,
+            center_point,
             base_diameter,
             base_diameter_expr,
             outside_diameter,
-            involute_curve_mirror_offset_angle_expr
+            involute_curve_mirror_offset_angle_expr,
+            True
         )
-        mirror_spline = SpurGear.__create_involute_curve_mirror(
+        mirror_spline = SpurGear.__create_involute_curve(
             sketch,
-            center_point,
             base_circle,
             involute_curve_mirror_line,
-            spline,
+            center_point,
             base_diameter,
+            base_diameter_expr,
             outside_diameter,
-            involute_curve_mirror_offset_angle_expr
+            involute_curve_mirror_offset_angle_expr,
+            False
         )
         tooth_top_land = SpurGear.__create_tooth_top_land(
             sketch,
@@ -248,7 +244,8 @@ class SpurGear:
             sketch: adsk.fusion.Sketch,
             center_point: adsk.fusion.SketchPoint,
             base_circle: adsk.fusion.SketchCircle,
-            base_diameter: float
+            base_diameter: float,
+            clockwise: bool
     ) -> list[adsk.fusion.SketchLine]:
         radius_line = sketch.sketchCurves.sketchLines.addByTwoPoints(
             adsk.core.Point3D.create(0, 0, 0),
@@ -262,9 +259,13 @@ class SpurGear:
         circular_pattern_input = sketch.geometricConstraints.createCircularPatternInput(
             [radius_line], radius_line.startSketchPoint
         )
+        if clockwise:
+            sign_expr = '-'
+        else:
+            sign_expr = ''
         circular_pattern_input.quantity = adsk.core.ValueInput.createByString(f"{tangent_line_count}")
         circular_pattern_input.totalAngle = adsk.core.ValueInput.createByString(
-            f"-{(tangent_line_count - 1) * tangent_line_interval_deg} deg"
+            f"{sign_expr}{(tangent_line_count - 1) * tangent_line_interval_deg} deg"
         )
         circular_pattern = sketch.geometricConstraints.addCircularPattern(circular_pattern_input)
 
@@ -279,20 +280,35 @@ class SpurGear:
     def __create_involute_curve(
             sketch: adsk.fusion.Sketch,
             base_circle: adsk.fusion.SketchCircle,
-            radius_lines: list[adsk.fusion.SketchLine],
             involute_curve_mirror_line: adsk.fusion.SketchLine,
+            center_point: adsk.fusion.SketchPoint,
             base_diameter: float,
             base_diameter_expr: str,
             outside_diameter: float,
-            involute_curve_mirror_offset_angle_expr: str
+            involute_curve_mirror_offset_angle_expr: str,
+            clockwise: bool
     ) -> adsk.fusion.SketchFittedSpline:
         spline_points = adsk.core.ObjectCollection.create()
+
+        radius_lines = SpurGear.__create_involute_curve_radius_construction_lines(
+            sketch,
+            center_point,
+            base_circle,
+            base_diameter,
+            clockwise
+        )
+
+        if clockwise:
+            sign = -1
+        else:
+            sign = 1
+
         for i in range(len(radius_lines) - 1):
             radius_line: adsk.fusion.SketchLine = radius_lines[i]
 
             tangent_line = sketch.sketchCurves.sketchLines.addByTwoPoints(
                 radius_line.endSketchPoint,
-                adsk.core.Point3D.create(base_diameter, -base_diameter, 0),
+                adsk.core.Point3D.create(base_diameter, sign * base_diameter, 0),
             )
             tangent_line.isConstruction = True
             sketch.geometricConstraints.addTangent(base_circle, tangent_line)
@@ -302,7 +318,7 @@ class SpurGear:
                 tangent_line.startSketchPoint,
                 tangent_line.endSketchPoint,
                 adsk.fusion.DimensionOrientations.AlignedDimensionOrientation,
-                adsk.core.Point3D.create(base_diameter, -base_diameter, 0),
+                adsk.core.Point3D.create(base_diameter, sign * base_diameter, 0),
             )
             d.parameter.expression = (
                 f"{len(radius_lines) - i - 1} * PI * {base_diameter_expr} * ({tangent_line_interval_deg} deg / 360 deg)"
@@ -313,40 +329,13 @@ class SpurGear:
         d = sketch.sketchDimensions.addAngularDimension(
             involute_curve_mirror_line,
             radius_lines[len(radius_lines) - 1],
-            adsk.core.Point3D.create(outside_diameter, -1, 0),
+            adsk.core.Point3D.create(outside_diameter, sign, 0),
         )
         d.parameter.expression = involute_curve_mirror_offset_angle_expr
 
         # create involute spline
         spline = sketch.sketchCurves.sketchFittedSplines.add(spline_points)
         return spline
-
-    @staticmethod
-    def __create_involute_curve_mirror(
-            sketch: adsk.fusion.Sketch,
-            center_point: adsk.fusion.SketchPoint,
-            base_circle: adsk.fusion.SketchCircle,
-            involute_curve_mirror_line: adsk.fusion.SketchLine,
-            spline: adsk.fusion.SketchFittedSpline,
-            base_diameter: float,
-            outside_diameter: float,
-            involute_curve_mirror_offset_angle_expr: str
-    ) -> adsk.fusion.SketchFittedSpline:
-        spline_mirror_radius_line = sketch.sketchCurves.sketchLines.addByTwoPoints(
-            adsk.core.Point3D.create(0, 0, 0),
-            adsk.core.Point3D.create(base_diameter / 2.0, 1, 0),
-        )
-        spline_mirror_radius_line.isConstruction = True
-        sketch.geometricConstraints.addCoincident(spline_mirror_radius_line.startSketchPoint, center_point)
-        sketch.geometricConstraints.addCoincident(spline_mirror_radius_line.endSketchPoint, base_circle)
-        d = sketch.sketchDimensions.addAngularDimension(
-            involute_curve_mirror_line,
-            spline_mirror_radius_line,
-            adsk.core.Point3D.create(outside_diameter, 1, 0),
-        )
-        d.parameter.expression = involute_curve_mirror_offset_angle_expr
-
-        return futil.mirror_sketch_spline(sketch, spline, involute_curve_mirror_line)
 
     @staticmethod
     def __create_tooth_top_land(
