@@ -17,6 +17,7 @@ class SpurGear:
             number_of_teeth_value: adsk.core.ValueCommandInput,
             module_value: adsk.core.ValueCommandInput,
             gear_height_value: adsk.core.ValueCommandInput,
+            preview: bool = False,
             name: str | None = None,
     ):
         design = adsk.fusion.Design.cast(app.activeProduct)
@@ -33,25 +34,9 @@ class SpurGear:
 
         gear_height_expr = f"({gear_height_value.expression})"
 
-        # reference/pitch diameter (d)
-        pitch_diameter = number_of_teeth * module
-        pitch_diameter_expr = f"( {number_of_teeth_expr} * {module_expr} )"
-
         # dedendum (hf)
         dedendum = 1.25 * module
         dedendum_expr = f"( 1.25 * {module_expr} )"
-
-        # root diameter (df)
-        root_diameter = pitch_diameter - (2 * dedendum)
-        root_diameter_expr = f"( {pitch_diameter_expr} - (2 * {dedendum_expr}) )"
-
-        # base diameter (db)
-        base_diameter = pitch_diameter * math.cos(pressure_angle)
-        base_diameter_expr = f"( {pitch_diameter_expr} * cos({pressure_angle_expr}) )"
-
-        # tip/outside diameter (da)
-        outside_diameter = (pitch_diameter + 2) * module
-        outside_diameter_expr = f"( {pitch_diameter_expr} + (2 * {module_expr}) )"
 
         # pitch (p) - Pitch is the distance between corresponding points on adjacent teeth
         pitch_expr = f"( PI * {module_expr} )"
@@ -60,22 +45,25 @@ class SpurGear:
         tooth_thickness_expr = f"( {pitch_expr} / 2 )"
         half_tooth_thickness_expr = f"( {tooth_thickness_expr} / 2 )"
 
-        involute_curve_mirror_offset_angle_expr = (
-            f"( ({half_tooth_thickness_expr} / (PI * {root_diameter_expr})) * 360 deg )"
-        )
-
         comp_occurrence = design.rootComponent.occurrences.addNewComponent(adsk.core.Matrix3D.create())
         comp = comp_occurrence.component
         if name:
             comp.name = name
-        sketch = SpurGear.__create_sketch(comp)
+        sketch = SpurGear.__create_sketch(comp, name)
         sketch.isComputeDeferred = True
         center_point = sketch.originPoint
 
-        # root circle
-        root_circle = SpurGear.__create_root_circle(
-            sketch, center_point, root_diameter, root_diameter_expr, name
-        )
+        # reference/pitch circle (d)
+        pitch_diameter = number_of_teeth * module
+        pitch_diameter_expr = f"( {number_of_teeth_expr} * {module_expr} )"
+        SpurGear.__create_pitch_circle(sketch, center_point, pitch_diameter, pitch_diameter_expr, name)
+        if name:
+            pitch_diameter_expr = f'{name}_pitchDiameter'
+
+        # root circle (df)
+        root_diameter = pitch_diameter - (2 * dedendum)
+        root_diameter_expr = f"( {pitch_diameter_expr} - (2 * {dedendum_expr}) )"
+        root_circle = SpurGear.__create_root_circle(sketch, center_point, root_diameter, root_diameter_expr, name)
         root_circle_profiles = futil.find_profiles([root_circle])
         root_circle_extrude = comp.features.extrudeFeatures.addSimple(
             root_circle_profiles[0],
@@ -85,24 +73,32 @@ class SpurGear:
         if name:
             root_circle_extrude.name = f'{name}_circle'
             root_circle_extrude.bodies.item(0).name = f'{name}_circle'
+            root_diameter_expr = f'{name}_rootDiameter'
 
-        # base circle
+        # base circle (db)
+        base_diameter = pitch_diameter * math.cos(pressure_angle)
+        base_diameter_expr = f"( {pitch_diameter_expr} * cos({pressure_angle_expr}) )"
         base_circle = SpurGear.__create_base_circle(
             sketch, center_point, base_diameter, base_diameter_expr, root_diameter, name
         )
+        if name:
+            base_diameter_expr = f'{name}_baseDiameter'
 
-        # pitch circle
-        SpurGear.__create_pitch_circle(
-            sketch, center_point, pitch_diameter, pitch_diameter_expr, root_diameter, name
-        )
-
-        # outside circle
+        # tip/outside circle (da)
+        outside_diameter = (pitch_diameter + 2) * module
+        outside_diameter_expr = f"( {pitch_diameter_expr} + (2 * {module_expr}) )"
         outside_circle = SpurGear.__create_outside_circle(
             sketch, center_point, outside_diameter, outside_diameter_expr, root_diameter, name
         )
+        if name:
+            outside_diameter_expr = f'{name}_outsideDiameter'
 
         # tooth
         involute_curve_mirror_line = SpurGear.__create_involute_curve_mirror_line(sketch, center_point, outside_circle)
+
+        involute_curve_mirror_offset_angle_expr = (
+            f"( ({half_tooth_thickness_expr} / (PI * {root_diameter_expr})) * 360 deg )"
+        )
         spline = SpurGear.__create_involute_curve(
             sketch,
             base_circle,
@@ -123,6 +119,7 @@ class SpurGear:
             involute_curve_mirror_offset_angle_expr,
             False,
         )
+
         tooth_top_land = SpurGear.__create_tooth_top_land(
             sketch,
             center_point,
@@ -161,10 +158,11 @@ class SpurGear:
         return comp
 
     @staticmethod
-    def __create_sketch(comp: adsk.fusion.Component) -> adsk.fusion.Sketch:
+    def __create_sketch(comp: adsk.fusion.Component, name: str | None) -> adsk.fusion.Sketch:
         sketch_plane = comp.xYConstructionPlane
         sketch = comp.sketches.add(sketch_plane)
-        sketch.name = "SpurGear1"
+        if name:
+            sketch.name = name
         return sketch
 
     @staticmethod
@@ -217,7 +215,6 @@ class SpurGear:
             center_point: adsk.fusion.SketchPoint,
             pitch_diameter: float,
             pitch_diameter_expr: str,
-            root_diameter: float,
             name: str | None,
     ) -> adsk.fusion.SketchCircle:
         pitch_circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(
@@ -227,7 +224,7 @@ class SpurGear:
         sketch.geometricConstraints.addCoincident(pitch_circle.centerSketchPoint, center_point)
         d = sketch.sketchDimensions.addDiameterDimension(
             pitch_circle,
-            adsk.core.Point3D.create(-root_diameter / 1.5, root_diameter / 1.2, 0),
+            adsk.core.Point3D.create(-pitch_diameter / 1.5, pitch_diameter / 1.2, 0),
         )
         d.parameter.expression = pitch_diameter_expr
         if name:

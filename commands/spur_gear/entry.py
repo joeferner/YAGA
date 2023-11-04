@@ -1,6 +1,8 @@
 import adsk.core
+import adsk.fusion
 import os
 from typing import cast
+import time
 
 from .spur_gear import SpurGear
 from ...lib import fusion360utils as futil
@@ -56,22 +58,46 @@ def stop():
 # Function that is called when a user clicks the corresponding button in the UI.
 # This defines the contents of the command dialog and connects to the command related events.
 def command_created(args: adsk.core.CommandCreatedEventArgs):
-    futil.log(f"{CMD_NAME} command_created")
-
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
+    design = adsk.fusion.Design.cast(app.activeProduct)
 
-    default_value = adsk.core.ValueInput.createByString("20 deg")
-    inputs.addAngleValueCommandInput("pressure_angle", "Pressure Angle", default_value)
+    attr = design.attributes.itemByName("SpurGear", "pressureAngle")
+    if attr:
+        default_value = attr.value
+    else:
+        default_value = "20 deg"
+    inputs.addAngleValueCommandInput(
+        "pressure_angle",
+        "Pressure Angle",
+        adsk.core.ValueInput.createByString(default_value)
+    )
 
-    default_value = adsk.core.ValueInput.createByString("20")
-    inputs.addValueInput("number_of_teeth", "Number of Teeth", "", default_value)
+    attr = design.attributes.itemByName("SpurGear", "numTeeth")
+    if attr:
+        default_value = attr.value
+    else:
+        default_value = "20"
+    inputs.addValueInput(
+        "number_of_teeth",
+        "Number of Teeth",
+        "",
+        adsk.core.ValueInput.createByString(default_value)
+    )
 
-    default_value = adsk.core.ValueInput.createByString("5 mm")
-    inputs.addValueInput("module", "Module", "cm", default_value)
+    attr = design.attributes.itemByName("SpurGear", "module")
+    if attr:
+        default_value = attr.value
+    else:
+        default_value = "5 mm"
+    inputs.addValueInput("module", "Module", "cm", adsk.core.ValueInput.createByString(default_value))
 
-    default_value = adsk.core.ValueInput.createByString("5 mm")
-    inputs.addValueInput("gear_height", "Gear Height", "cm", default_value)
+    attr = design.attributes.itemByName("SpurGear", "thickness")
+    if attr:
+        default_value = attr.value
+    else:
+        default_value = "5 mm"
+    inputs.addValueInput("thickness", "Gear Height", "cm", adsk.core.ValueInput.createByString(default_value))
 
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
     futil.add_handler(args.command.inputChanged, command_input_changed, local_handlers=local_handlers)
@@ -89,35 +115,39 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
 
 
 def command_execute(args: adsk.core.CommandEventArgs):
-    # General logging for debug.
-    futil.log(f"{CMD_NAME} Command Execute Event")
-    command_run(args)
+    command_run(args, False)
 
 
 def command_execute_preview(args: adsk.core.CommandEventArgs):
-    # General logging for debug.
-    futil.log(f"{CMD_NAME} Command Execute Preview Event")
-    command_run(args)
+    command_run(args, True)
 
 
-def command_run(args: adsk.core.CommandEventArgs):
-    # See
-    # https://www.youtube.com/watch?v=PGfIzIYITmU
-    # https://www.instructables.com/Make-a-Gear-From-Scratch-in-Fusion-360/
+def command_run(args: adsk.core.CommandEventArgs, preview: bool):
+    design = adsk.fusion.Design.cast(app.activeProduct)
     inputs = args.command.commandInputs
     pressure_angle_value = cast(adsk.core.ValueCommandInput, inputs.itemById("pressure_angle"))
     number_of_teeth_value = cast(adsk.core.ValueCommandInput, inputs.itemById("number_of_teeth"))
     module_value = cast(adsk.core.ValueCommandInput, inputs.itemById("module"))
-    gear_height_value = cast(adsk.core.ValueCommandInput, inputs.itemById("gear_height"))
+    thickness = cast(adsk.core.ValueCommandInput, inputs.itemById("thickness"))
 
+    start_time = time.time()
     SpurGear.create_component(
         app,
         pressure_angle_value=pressure_angle_value,
         number_of_teeth_value=number_of_teeth_value,
         module_value=module_value,
-        gear_height_value=gear_height_value,
+        gear_height_value=thickness,
+        preview=preview,
         name="SpurGear1"
     )
+    end_time = time.time()
+    futil.log(f'create took {end_time - start_time}')
+
+    if not preview:
+        design.attributes.add("SpurGear", "pressureAngle", pressure_angle_value.expression)
+        design.attributes.add("SpurGear", "numTeeth", number_of_teeth_value.expression)
+        design.attributes.add("SpurGear", "module", module_value.expression)
+        design.attributes.add("SpurGear", "thickness", thickness.expression)
 
 
 # This event handler is called when the user changes anything in the command dialog
