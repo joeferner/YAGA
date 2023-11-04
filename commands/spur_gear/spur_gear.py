@@ -93,67 +93,78 @@ class SpurGear:
         if name:
             outside_diameter_expr = f'{name}_outsideDiameter'
 
-        # tooth
-        involute_curve_mirror_line = SpurGear.__create_involute_curve_mirror_line(sketch, center_point, outside_circle)
+        if preview:
+            sketch.isVisible = True
+        if not preview:
+            # tooth
+            involute_curve_mirror_line = SpurGear.__create_involute_curve_mirror_line(
+                sketch,
+                center_point,
+                outside_circle
+            )
 
-        involute_curve_mirror_offset_angle_expr = (
-            f"( ({half_tooth_thickness_expr} / (PI * {root_diameter_expr})) * 360 deg )"
-        )
-        spline = SpurGear.__create_involute_curve(
-            sketch,
-            base_circle,
-            involute_curve_mirror_line,
-            center_point,
-            base_diameter,
-            base_diameter_expr,
-            involute_curve_mirror_offset_angle_expr,
-            True,
-        )
-        mirror_spline = SpurGear.__create_involute_curve(
-            sketch,
-            base_circle,
-            involute_curve_mirror_line,
-            center_point,
-            base_diameter,
-            base_diameter_expr,
-            involute_curve_mirror_offset_angle_expr,
-            False,
-        )
+            involute_curve_mirror_offset_angle_expr = (
+                f"( ({half_tooth_thickness_expr} / (PI * {root_diameter_expr})) * 360 deg )"
+            )
+            spline = SpurGear.__create_involute_curve(
+                sketch,
+                base_circle,
+                involute_curve_mirror_line,
+                center_point,
+                base_diameter,
+                base_diameter_expr,
+                involute_curve_mirror_offset_angle_expr,
+                True,
+            )
+            mirror_spline = SpurGear.__create_involute_curve(
+                sketch,
+                base_circle,
+                involute_curve_mirror_line,
+                center_point,
+                base_diameter,
+                base_diameter_expr,
+                involute_curve_mirror_offset_angle_expr,
+                False,
+            )
 
-        tooth_top_land = SpurGear.__create_tooth_top_land(
-            sketch,
-            center_point,
-            spline,
-            mirror_spline,
-            outside_diameter,
-            outside_diameter_expr,
-        )
-        SpurGear.__create_dedendum_line(sketch, center_point, spline)
-        SpurGear.__create_dedendum_line(sketch, center_point, mirror_spline)
+            tooth_top_land = SpurGear.__create_tooth_top_land(
+                sketch,
+                center_point,
+                spline,
+                mirror_spline,
+                outside_diameter,
+                outside_diameter_expr,
+            )
 
-        sketch.isComputeDeferred = False
+            # create lines from involute curve to root circle
+            SpurGear.__create_dedendum_line(sketch, center_point, spline)
+            SpurGear.__create_dedendum_line(sketch, center_point, mirror_spline)
 
-        # extrude tooth
-        tooth_feature = SpurGear.__extrude_tooth(
-            comp,
-            gear_height_expr,
-            mirror_spline,
-            root_circle,
-            spline,
-            tooth_top_land,
-            name
-        )
+            sketch.isComputeDeferred = False
 
-        # rotate tooth
-        tooth_pattern = SpurGear.__rotate_tooth_feature(comp, tooth_feature, root_circle, number_of_teeth_expr, name)
+            # extrude tooth
+            tooth_feature = SpurGear.__extrude_tooth(
+                comp,
+                gear_height_expr,
+                mirror_spline,
+                root_circle,
+                spline,
+                tooth_top_land,
+                name
+            )
 
-        # group features into one
-        group = design.timeline.timelineGroups.add(
-            comp_occurrence.timelineObject.index,
-            tooth_pattern.timelineObject.index
-        )
-        if name:
-            group.name = name
+            # rotate tooth
+            tooth_pattern = SpurGear.__rotate_tooth_feature(comp, tooth_feature, root_circle, number_of_teeth_expr,
+                                                            name)
+
+            # group features into one
+            group = design.timeline.timelineGroups.add(
+                comp_occurrence.timelineObject.index,
+                tooth_pattern.timelineObject.index
+            )
+            if name:
+                group.name = name
+        # END if not preview:
 
         return comp
 
