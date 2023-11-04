@@ -117,25 +117,27 @@ def command_run(args: adsk.core.CommandEventArgs):
     module = unitsMgr.evaluateExpression(module_value.expression, "cm")
     gear_height = unitsMgr.evaluateExpression(gear_height_value.expression, "cm")
 
-    pitch_diameter = number_of_teeth * module
-    diametral_pitch = 1 / module
-    addendum = 1 / diametral_pitch
-    dedendum = 1.25 / diametral_pitch
-    root_diameter = pitch_diameter - (2 * dedendum)
-    base_diameter = pitch_diameter * math.cos(pressure_angle)
-    outside_diameter = (number_of_teeth + 2) / diametral_pitch
+    # https://khkgears.net/new/gear_knowledge/abcs_of_gears-b/basic_gear_terminology_calculation.html
+    # https://johnfsworkshop.org/home/processes-links/processes-removing-metal/the-milling-machine/the-milling-machine-workholding/worm-driven-rotary-devices/the-dividing-head/helical-milling-links/helical-milling-13-9-10/formulae-for-gears/
+    pitch_diameter = number_of_teeth * module # PCD - D
+    addendum = module # addendum - a
+    base_diameter = pitch_diameter * math.cos(pressure_angle) # BC
+    dedendum = pitch_diameter - base_diameter # dedendum - b
+    root_diameter = pitch_diameter - (2 * dedendum) # ? - Dr
+    outside_diameter = (number_of_teeth + 2) * module # OD - Do = ( N + 2 ) / P
+    circular_pitch = module * math.pi # CP
 
+    diametral_pitch_expr = f"( 1 / ({module_value.expression}) )"
     pitch_diameter_expr = f"( ({number_of_teeth_value.expression}) * ({module_value.expression}) )"
     base_diameter_expr = f"( {pitch_diameter_expr} * cos({pressure_angle_value.expression}) )"
     base_radius_expr = f"( {base_diameter_expr} / 2 )"
     root_diameter_expr = f"( (({number_of_teeth_value.expression}) * ({module_value.expression})) - (2 * (1.25 / (1 / ({module_value.expression})))) )"
     outside_diameter_expr = f"( (({number_of_teeth_value.expression}) + 2) / (1 / ({module_value.expression})) )"
-    base_circumference_expr = f"( 2 * PI * ({base_diameter_expr} / 2) )"
+    base_circumference_expr = f"( PI * {base_diameter_expr} )"
     tooth_thickness_expr = f"( {base_circumference_expr} / (({number_of_teeth_value.expression}) * 2) )"
-    # TODO this isn't quite right need to compensate for pitch angle
-    involute_curve_mirror_offset_angle_expr = (
-        f"360 deg / ({number_of_teeth_value.expression}) / 2 / 2"
-    )  # /2 tooth and groove /2 half a tooth
+    # https://khkgears.net/new/gear_knowledge/gear_technical_reference/tooth-thickness.html
+    # f"( (PI / 2) + () ) * ({module_value.expression})"
+    involute_curve_mirror_offset_angle_expr = f"( (PI / 2) / ({diametral_pitch_expr}*1 mm) ) / ({base_circumference_expr}/1 mm) * 360 deg / 2"
 
     # component
     comp = futil.create_new_component()
