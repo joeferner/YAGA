@@ -34,7 +34,7 @@ def start():
 
     # Add a button into the UI so the user can run the command.
     gear_drop_down = gear_drop_down_util.get_gear_drop_down(ui)
-    control = gear_drop_down.controls.addCommand(command_definition)
+    gear_drop_down.controls.addCommand(command_definition)
 
 
 # Executed when add-in is stopped.
@@ -57,7 +57,6 @@ def stop():
 # This defines the contents of the command dialog and connects to the command related events.
 def command_created(args: adsk.core.CommandCreatedEventArgs):
     futil.log(f"{CMD_NAME} command_created")
-    defaultLengthUnits = app.activeProduct.unitsManager.defaultLengthUnits
 
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
@@ -125,7 +124,6 @@ def command_run(args: adsk.core.CommandEventArgs):
 # allowing you to modify values of other inputs based on that change.
 def command_input_changed(args: adsk.core.InputChangedEventArgs):
     changed_input = args.input
-    inputs = args.inputs
 
     # General logging for debug.
     futil.log(f"{CMD_NAME} Input Changed Event fired from a change to {changed_input.id}")

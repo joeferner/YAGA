@@ -21,7 +21,7 @@ try:
     from ... import config
 
     DEBUG = config.DEBUG
-except:
+except Exception:
     DEBUG = False
 
 

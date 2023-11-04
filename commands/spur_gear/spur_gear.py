@@ -31,7 +31,6 @@ class SpurGear:
         module = units_mgr.evaluateExpression(module_value.expression, "cm")
         module_expr = f"({module_value.expression})"
 
-        gear_height = units_mgr.evaluateExpression(gear_height_value.expression, "cm")
         gear_height_expr = f"({gear_height_value.expression})"
 
         # reference/pitch diameter (d)
@@ -55,11 +54,9 @@ class SpurGear:
         outside_diameter_expr = f"( {pitch_diameter_expr} + (2 * {module_expr}) )"
 
         # pitch (p) - Pitch is the distance between corresponding points on adjacent teeth
-        pitch = math.pi * module
         pitch_expr = f"( PI * {module_expr} )"
 
         # tooth thickness (s)
-        tooth_thickness = pitch / 2
         tooth_thickness_expr = f"( {pitch_expr} / 2 )"
         half_tooth_thickness_expr = f"( {tooth_thickness_expr} / 2 )"
 
@@ -95,7 +92,7 @@ class SpurGear:
         )
 
         # pitch circle
-        pitch_circle = SpurGear.__create_pitch_circle(
+        SpurGear.__create_pitch_circle(
             sketch, center_point, pitch_diameter, pitch_diameter_expr, root_diameter, name
         )
 
@@ -113,7 +110,6 @@ class SpurGear:
             center_point,
             base_diameter,
             base_diameter_expr,
-            outside_diameter,
             involute_curve_mirror_offset_angle_expr,
             True,
         )
@@ -124,7 +120,6 @@ class SpurGear:
             center_point,
             base_diameter,
             base_diameter_expr,
-            outside_diameter,
             involute_curve_mirror_offset_angle_expr,
             False,
         )
@@ -326,7 +321,6 @@ class SpurGear:
             center_point: adsk.fusion.SketchPoint,
             base_diameter: float,
             base_diameter_expr: str,
-            outside_diameter: float,
             involute_curve_mirror_offset_angle_expr: str,
             clockwise: bool,
     ) -> adsk.fusion.SketchFittedSpline:
