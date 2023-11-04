@@ -93,3 +93,15 @@ def profile_contains_curve(profile: adsk.fusion.Profile, curve: adsk.fusion.Sket
             if profile_curve.sketchEntity == curve:
                 return True
     return False
+
+
+def find_smallest_profile(profiles: list[adsk.fusion.Profile]) -> adsk.fusion.Profile:
+    smallest_profile = None
+    smallest_profile_area = 0
+    for profile in profiles:
+        area = (abs(profile.boundingBox.maxPoint.x - profile.boundingBox.minPoint.x)
+                * abs(profile.boundingBox.maxPoint.y - profile.boundingBox.minPoint.y))
+        if smallest_profile is None or area < smallest_profile_area:
+            smallest_profile = profile
+            smallest_profile_area = area
+    return smallest_profile

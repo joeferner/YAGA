@@ -1,6 +1,7 @@
 import math
 import adsk.core
 import adsk.fusion
+from typing import cast
 
 from ...lib import fusion360utils as futil
 
@@ -49,21 +50,26 @@ class SpurGear:
         comp = comp_occurrence.component
         if name:
             comp.name = name
-        sketch = SpurGear.__create_sketch(comp, name)
-        sketch.isComputeDeferred = True
-        center_point = sketch.originPoint
+
+        sketch_plane = comp.xYConstructionPlane
+        sketch_circles = comp.sketches.add(sketch_plane)
+        if name:
+            sketch_circles.name = f"{name}_circles"
+        sketch_circles.isComputeDeferred = True
+        center_point = sketch_circles.originPoint
 
         # reference/pitch circle (d)
         pitch_diameter = number_of_teeth * module
         pitch_diameter_expr = f"( {number_of_teeth_expr} * {module_expr} )"
-        SpurGear.__create_pitch_circle(sketch, center_point, pitch_diameter, pitch_diameter_expr, name)
+        SpurGear.__create_pitch_circle(sketch_circles, center_point, pitch_diameter, pitch_diameter_expr, name)
         if name:
             pitch_diameter_expr = f'{name}_pitchDiameter'
 
         # root circle (df)
         root_diameter = pitch_diameter - (2 * dedendum)
         root_diameter_expr = f"( {pitch_diameter_expr} - (2 * {dedendum_expr}) )"
-        root_circle = SpurGear.__create_root_circle(sketch, center_point, root_diameter, root_diameter_expr, name)
+        root_circle = SpurGear.__create_root_circle(sketch_circles, center_point, root_diameter, root_diameter_expr,
+                                                    name)
         root_circle_profiles = futil.find_profiles([root_circle])
         root_circle_extrude = comp.features.extrudeFeatures.addSimple(
             root_circle_profiles[0],
@@ -79,7 +85,7 @@ class SpurGear:
         base_diameter = pitch_diameter * math.cos(pressure_angle)
         base_diameter_expr = f"( {pitch_diameter_expr} * cos({pressure_angle_expr}) )"
         base_circle = SpurGear.__create_base_circle(
-            sketch, center_point, base_diameter, base_diameter_expr, root_diameter, name
+            sketch_circles, center_point, base_diameter, base_diameter_expr, root_diameter, name
         )
         if name:
             base_diameter_expr = f'{name}_baseDiameter'
@@ -88,17 +94,30 @@ class SpurGear:
         outside_diameter = (pitch_diameter + 2) * module
         outside_diameter_expr = f"( {pitch_diameter_expr} + (2 * {module_expr}) )"
         outside_circle = SpurGear.__create_outside_circle(
-            sketch, center_point, outside_diameter, outside_diameter_expr, root_diameter, name
+            sketch_circles, center_point, outside_diameter, outside_diameter_expr, root_diameter, name
         )
         if name:
             outside_diameter_expr = f'{name}_outsideDiameter'
 
+        sketch_circles.isComputeDeferred = False
+
         if preview:
-            sketch.isVisible = True
+            sketch_circles.isVisible = True
         if not preview:
+            sketch_tooth = comp.sketches.add(sketch_plane)
+            if name:
+                sketch_tooth.name = f"{name}_tooth"
+
+            center_point = sketch_tooth.originPoint
+            base_circle = cast(adsk.fusion.SketchCircle, sketch_tooth.project(base_circle).item(0))
+            root_circle = cast(adsk.fusion.SketchCircle, sketch_tooth.project(root_circle).item(0))
+            outside_circle = cast(adsk.fusion.SketchCircle, sketch_tooth.project(outside_circle).item(0))
+
+            sketch_tooth.isComputeDeferred = True
+
             # tooth
             involute_curve_mirror_line = SpurGear.__create_involute_curve_mirror_line(
-                sketch,
+                sketch_tooth,
                 center_point,
                 outside_circle
             )
@@ -107,7 +126,7 @@ class SpurGear:
                 f"( ({half_tooth_thickness_expr} / (PI * {root_diameter_expr})) * 360 deg )"
             )
             spline = SpurGear.__create_involute_curve(
-                sketch,
+                sketch_tooth,
                 base_circle,
                 involute_curve_mirror_line,
                 center_point,
@@ -117,7 +136,7 @@ class SpurGear:
                 True,
             )
             mirror_spline = SpurGear.__create_involute_curve(
-                sketch,
+                sketch_tooth,
                 base_circle,
                 involute_curve_mirror_line,
                 center_point,
@@ -128,7 +147,7 @@ class SpurGear:
             )
 
             tooth_top_land = SpurGear.__create_tooth_top_land(
-                sketch,
+                sketch_tooth,
                 center_point,
                 spline,
                 mirror_spline,
@@ -137,25 +156,33 @@ class SpurGear:
             )
 
             # create lines from involute curve to root circle
-            SpurGear.__create_dedendum_line(sketch, center_point, spline)
-            SpurGear.__create_dedendum_line(sketch, center_point, mirror_spline)
+            dedendum_line_a = SpurGear.__create_dedendum_line(sketch_tooth, center_point, spline)
+            dedendum_line_b = SpurGear.__create_dedendum_line(sketch_tooth, center_point, mirror_spline)
 
-            sketch.isComputeDeferred = False
+            sketch_tooth.isComputeDeferred = False
 
             # extrude tooth
             tooth_feature = SpurGear.__extrude_tooth(
                 comp,
                 gear_height_expr,
+                spline,
                 mirror_spline,
                 root_circle,
-                spline,
+                base_circle,
                 tooth_top_land,
+                dedendum_line_a,
+                dedendum_line_b,
                 name
             )
 
             # rotate tooth
-            tooth_pattern = SpurGear.__rotate_tooth_feature(comp, tooth_feature, root_circle, number_of_teeth_expr,
-                                                            name)
+            tooth_pattern = SpurGear.__rotate_tooth_feature(
+                comp,
+                tooth_feature,
+                root_circle,
+                number_of_teeth_expr,
+                name
+            )
 
             # group features into one
             group = design.timeline.timelineGroups.add(
@@ -167,14 +194,6 @@ class SpurGear:
         # END if not preview:
 
         return comp
-
-    @staticmethod
-    def __create_sketch(comp: adsk.fusion.Component, name: str | None) -> adsk.fusion.Sketch:
-        sketch_plane = comp.xYConstructionPlane
-        sketch = comp.sketches.add(sketch_plane)
-        if name:
-            sketch.name = name
-        return sketch
 
     @staticmethod
     def __create_root_circle(
@@ -402,21 +421,45 @@ class SpurGear:
             sketch: adsk.fusion.Sketch,
             center_point: adsk.fusion.SketchPoint,
             involute_curve_spline: adsk.fusion.SketchFittedSpline,
-    ):
+    ) -> adsk.fusion.SketchLine:
         line = sketch.sketchCurves.sketchLines.addByTwoPoints(
             adsk.core.Point3D.create(1, 1, 0),
             adsk.core.Point3D.create(2, 2, 0),
         )
         sketch.geometricConstraints.addCoincident(line.startSketchPoint, center_point)
         sketch.geometricConstraints.addCoincident(line.endSketchPoint, involute_curve_spline.startSketchPoint)
+        return line
 
     @staticmethod
-    def __extrude_tooth(comp, gear_height_expr, mirror_spline, root_circle, spline, tooth_top_land, name):
-        tooth_profiles = futil.find_profiles([spline, mirror_spline, root_circle, tooth_top_land])
-        if len(tooth_profiles) != 1:
-            raise Exception(f"expected 1 profile, found {len(tooth_profiles)} for spur gear tooth")
+    def __extrude_tooth(
+            comp: adsk.fusion.Component,
+            gear_height_expr: str,
+            spline: adsk.fusion.SketchFittedSpline,
+            mirror_spline: adsk.fusion.SketchFittedSpline,
+            root_circle: adsk.fusion.SketchCircle,
+            base_circle: adsk.fusion.SketchCircle,
+            tooth_top_land: adsk.fusion.SketchArc,
+            dedendum_line_a: adsk.fusion.SketchLine,
+            dedendum_line_b: adsk.fusion.SketchLine,
+            name: str | None
+    ) -> adsk.fusion.Feature:
+        profiles = adsk.core.ObjectCollection.create()
+
+        # two profiles will be found the inside of tooth profile and all the way around the circle profile
+        # we want the smaller of the two
+        found_profiles = futil.find_profiles([dedendum_line_a, dedendum_line_b, root_circle, base_circle])
+        if len(found_profiles) != 2:
+            raise Exception(f"expected 2 profile, found {len(found_profiles)} for spur gear tooth (root)")
+        profiles.add(futil.find_smallest_profile(found_profiles))
+
+        # same here, we will find the inner and outer profiles
+        found_profiles = futil.find_profiles([base_circle, spline, mirror_spline])
+        if len(found_profiles) != 2:
+            raise Exception(f"expected 2 profile, found {len(found_profiles)} for spur gear tooth (tip)")
+        profiles.add(futil.find_smallest_profile(found_profiles))
+
         tooth_feature = comp.features.extrudeFeatures.addSimple(
-            tooth_profiles[0],
+            profiles,
             adsk.core.ValueInput.createByString(gear_height_expr),
             adsk.fusion.FeatureOperations.NewBodyFeatureOperation
         )
