@@ -9,9 +9,9 @@
 #  AUTODESK, INC. DOES NOT WARRANT THAT THE OPERATION OF THE PROGRAM WILL BE
 #  UNINTERRUPTED OR ERROR FREE.
 
-import os
 import traceback
 import adsk.core
+import adsk.fusion
 
 app = adsk.core.Application.get()
 ui = app.userInterface
@@ -26,9 +26,9 @@ except:
 
 
 def log(
-    message: str,
-    level: adsk.core.LogLevels = adsk.core.LogLevels.InfoLogLevel,
-    force_console: bool = False,
+        message: str,
+        level: adsk.core.LogLevels = adsk.core.LogLevels.InfoLogLevel,
+        force_console: bool = False,
 ):
     """Utility function to easily handle logging in your app.
 
@@ -69,11 +69,9 @@ def handle_error(name: str, show_message_box: bool = False):
         ui.messageBox(f"{name}\n{traceback.format_exc()}")
 
 
-def create_new_component():
+def create_new_component() -> adsk.fusion.Component:
     # Get the active design.
     product = app.activeProduct
     design = adsk.fusion.Design.cast(product)
-    rootComp = design.rootComponent
-    allOccs = rootComp.occurrences
-    newOcc = allOccs.addNewComponent(adsk.core.Matrix3D.create())
-    return newOcc.component
+    new_occ: adsk.fusion.Occurrence = design.rootComponent.occurrences.addNewComponent(adsk.core.Matrix3D.create())
+    return new_occ.component
