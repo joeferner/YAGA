@@ -15,6 +15,7 @@ ui = app.userInterface
 CMD_ID = f"{config.COMPANY_NAME}_{config.ADDIN_NAME}_spurGear"
 CMD_NAME = "Spur Gear"
 CMD_Description = "Creates a spur gear"
+ATTRIBUTE_GROUP_NAME = "YAGA_SpurGear"
 
 ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources", "")
 
@@ -62,7 +63,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     inputs = args.command.commandInputs
     design = adsk.fusion.Design.cast(app.activeProduct)
 
-    attr = design.attributes.itemByName("SpurGear", "pressureAngle")
+    attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "pressureAngle")
     if attr:
         default_value = attr.value
     else:
@@ -73,7 +74,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         adsk.core.ValueInput.createByString(default_value)
     )
 
-    attr = design.attributes.itemByName("SpurGear", "numTeeth")
+    attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "numTeeth")
     if attr:
         default_value = attr.value
     else:
@@ -85,14 +86,14 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         adsk.core.ValueInput.createByString(default_value)
     )
 
-    attr = design.attributes.itemByName("SpurGear", "module")
+    attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "module")
     if attr:
         default_value = attr.value
     else:
         default_value = "5 mm"
     inputs.addValueInput("module", "Module", "cm", adsk.core.ValueInput.createByString(default_value))
 
-    attr = design.attributes.itemByName("SpurGear", "thickness")
+    attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "thickness")
     if attr:
         default_value = attr.value
     else:
@@ -144,10 +145,10 @@ def command_run(args: adsk.core.CommandEventArgs, preview: bool):
     futil.log(f'create took {end_time - start_time}')
 
     if not preview:
-        design.attributes.add("SpurGear", "pressureAngle", pressure_angle_value.expression)
-        design.attributes.add("SpurGear", "numTeeth", number_of_teeth_value.expression)
-        design.attributes.add("SpurGear", "module", module_value.expression)
-        design.attributes.add("SpurGear", "thickness", thickness.expression)
+        design.attributes.add(ATTRIBUTE_GROUP_NAME, "pressureAngle", pressure_angle_value.expression)
+        design.attributes.add(ATTRIBUTE_GROUP_NAME, "numTeeth", number_of_teeth_value.expression)
+        design.attributes.add(ATTRIBUTE_GROUP_NAME, "module", module_value.expression)
+        design.attributes.add(ATTRIBUTE_GROUP_NAME, "thickness", thickness.expression)
 
 
 # This event handler is called when the user changes anything in the command dialog
