@@ -4,7 +4,7 @@ import math
 
 def mirror_sketch_spline(
     sketch: adsk.fusion.Sketch, spline: adsk.fusion.SketchFittedSpline, mirror_line: adsk.fusion.SketchLine
-) -> tuple[adsk.fusion.SketchFittedSpline, adsk.fusion.SymmetryConstraint]:
+) -> adsk.fusion.SketchFittedSpline:
     # see https://stackoverflow.com/a/8954454/39431
     x1 = mirror_line.startSketchPoint.geometry.x
     x2 = mirror_line.endSketchPoint.geometry.x
@@ -30,5 +30,6 @@ def mirror_sketch_spline(
         mirror_spline_points.add(adsk.core.Point3D.create(px_p, py_p, z))
     mirror_spline = sketch.sketchCurves.sketchFittedSplines.add(mirror_spline_points)
 
-    symmetry = sketch.geometricConstraints.addSymmetry(spline, mirror_spline, mirror_line)
-    return mirror_spline, symmetry
+    sketch.geometricConstraints.addSymmetry(spline, mirror_spline, mirror_line)
+
+    return mirror_spline

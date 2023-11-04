@@ -111,14 +111,15 @@ def command_run(args: adsk.core.CommandEventArgs):
     module_value = cast(adsk.core.ValueCommandInput, inputs.itemById("module"))
     gear_height_value = cast(adsk.core.ValueCommandInput, inputs.itemById("gear_height"))
 
-    spur_gear = SpurGear(
+    spur_gear = SpurGear()
+    spur_gear.create_component(
         app,
         pressure_angle_value=pressure_angle_value,
         number_of_teeth_value=number_of_teeth_value,
         module_value=module_value,
-        gear_height_value=gear_height_value
+        gear_height_value=gear_height_value,
+        name_prefix="spur_gear1"
     )
-    spur_gear.create_component()
 
 
 # This event handler is called when the user changes anything in the command dialog

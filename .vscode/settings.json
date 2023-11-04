@@ -8,5 +8,9 @@
 	"python.defaultInterpreterPath": "C:/Users/Joe Ferner/AppData/Local/Autodesk/webdeploy/production/fd081b4c15f2fc37998034adb20de16163fc298f/Python/python.exe",
 	"[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff"
-  }
+	},
+	"cSpell.words": [
+		"dedendum",
+		"futil"
+	]
 }
