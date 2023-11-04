@@ -111,8 +111,7 @@ def command_run(args: adsk.core.CommandEventArgs):
     module_value = cast(adsk.core.ValueCommandInput, inputs.itemById("module"))
     gear_height_value = cast(adsk.core.ValueCommandInput, inputs.itemById("gear_height"))
 
-    spur_gear = SpurGear()
-    spur_gear.create_component(
+    SpurGear.create_component(
         app,
         pressure_angle_value=pressure_angle_value,
         number_of_teeth_value=number_of_teeth_value,
