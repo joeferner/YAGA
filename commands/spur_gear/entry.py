@@ -117,7 +117,7 @@ def command_run(args: adsk.core.CommandEventArgs):
         number_of_teeth_value=number_of_teeth_value,
         module_value=module_value,
         gear_height_value=gear_height_value,
-        name_prefix="spur_gear1"
+        name="SpurGear1"
     )
 
 

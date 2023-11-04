@@ -69,9 +69,27 @@ def handle_error(name: str, show_message_box: bool = False):
         ui.messageBox(f"{name}\n{traceback.format_exc()}")
 
 
-def create_new_component() -> adsk.fusion.Component:
-    # Get the active design.
-    product = app.activeProduct
-    design = adsk.fusion.Design.cast(product)
-    new_occ: adsk.fusion.Occurrence = design.rootComponent.occurrences.addNewComponent(adsk.core.Matrix3D.create())
-    return new_occ.component
+def find_profiles(curves: list[adsk.fusion.SketchCurve]) -> list[adsk.fusion.Profile]:
+    if len(curves) == 0:
+        return []
+    profiles: [adsk.fusion.Profile] = []
+    sketch = curves[0].parentSketch
+    for profile in sketch.profiles:
+        if profile_contains_curves(profile, curves):
+            profiles.append(profile)
+    return profiles
+
+
+def profile_contains_curves(profile: adsk.fusion.Profile, curves: list[adsk.fusion.SketchCurve]) -> bool:
+    for curve in curves:
+        if not profile_contains_curve(profile, curve):
+            return False
+    return True
+
+
+def profile_contains_curve(profile: adsk.fusion.Profile, curve: adsk.fusion.SketchCurve) -> bool:
+    for loop in profile.profileLoops:
+        for profile_curve in loop.profileCurves:
+            if profile_curve.sketchEntity == curve:
+                return True
+    return False
