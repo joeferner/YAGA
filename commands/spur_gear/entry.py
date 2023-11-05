@@ -161,6 +161,7 @@ def command_execute_preview(args: adsk.core.CommandEventArgs):
 
 
 def command_run(args: adsk.core.CommandEventArgs, preview: bool):
+    start_time = time.time()
     design = adsk.fusion.Design.cast(app.activeProduct)
     inputs = args.command.commandInputs
     pressure_angle_value = cast(adsk.core.ValueCommandInput, inputs.itemById("pressure_angle"))
@@ -171,7 +172,6 @@ def command_run(args: adsk.core.CommandEventArgs, preview: bool):
 
     name = futil.find_next_name(design, "SpurGear")
 
-    start_time = time.time()
     SpurGear.create_component(
         app,
         pressure_angle_value=pressure_angle_value,
@@ -182,8 +182,6 @@ def command_run(args: adsk.core.CommandEventArgs, preview: bool):
         preview=preview,
         name=name,
     )
-    end_time = time.time()
-    futil.log(f"create took {end_time - start_time}")
 
     if not preview:
         design.attributes.add(ATTRIBUTE_GROUP_NAME, "pressureAngle", pressure_angle_value.expression)
@@ -191,14 +189,14 @@ def command_run(args: adsk.core.CommandEventArgs, preview: bool):
         design.attributes.add(ATTRIBUTE_GROUP_NAME, "module", module_value.expression)
         design.attributes.add(ATTRIBUTE_GROUP_NAME, "thickness", thickness_value.expression)
 
+    end_time = time.time()
+    futil.log(f"create took {end_time - start_time}")
+
 
 # This event handler is called when the user changes anything in the command dialog
 # allowing you to modify values of other inputs based on that change.
 def command_input_changed(args: adsk.core.InputChangedEventArgs):
-    changed_input = args.input
-
-    # General logging for debug.
-    futil.log(f"{CMD_NAME} Input Changed Event fired from a change to {changed_input.id}")
+    pass
 
 
 # This event handler is called when the user interacts with any of the inputs in the dialog

@@ -2,7 +2,6 @@ import math
 import adsk.core
 import adsk.fusion
 from typing import cast
-from dataclasses import dataclass
 
 from ...lib import fusion360utils as futil
 
