@@ -23,6 +23,7 @@ ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resource
 # they are not released and garbage collected.
 local_handlers = []
 
+_img_input_metric = adsk.core.ImageCommandInput.cast(None)
 
 # Executed when add-in is run.
 def start():
@@ -63,6 +64,11 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     inputs = args.command.commandInputs
     design = adsk.fusion.Design.cast(app.activeProduct)
 
+    # help image
+    _img_input_metric = inputs.addImageCommandInput('gearImageMetric', '', 'commands/spur_gear/resources/gear-metric.png')
+    _img_input_metric.isFullWidth = True
+
+    # pressure angle
     attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "pressureAngle")
     if attr:
         default_value = attr.value
@@ -74,6 +80,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         adsk.core.ValueInput.createByString(default_value)
     )
 
+    # number of teeth
     attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "numTeeth")
     if attr:
         default_value = attr.value
@@ -86,6 +93,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         adsk.core.ValueInput.createByString(default_value)
     )
 
+    # module
     attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "module")
     if attr:
         default_value = attr.value
@@ -93,6 +101,15 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         default_value = "5 mm"
     inputs.addValueInput("module", "Module", "cm", adsk.core.ValueInput.createByString(default_value))
 
+    # root fillet radius
+    attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "rootFilletRadius")
+    if attr:
+        default_value = attr.value
+    else:
+        default_value = "1 mm"
+    inputs.addValueInput("rootFilletRadius", "Root Fillet Radius", "cm", adsk.core.ValueInput.createByString(default_value))
+
+    # thickness
     attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "thickness")
     if attr:
         default_value = attr.value
@@ -100,6 +117,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         default_value = "5 mm"
     inputs.addValueInput("thickness", "Gear Height", "cm", adsk.core.ValueInput.createByString(default_value))
 
+    # handlers
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
     futil.add_handler(args.command.inputChanged, command_input_changed, local_handlers=local_handlers)
     futil.add_handler(
@@ -129,6 +147,7 @@ def command_run(args: adsk.core.CommandEventArgs, preview: bool):
     pressure_angle_value = cast(adsk.core.ValueCommandInput, inputs.itemById("pressure_angle"))
     number_of_teeth_value = cast(adsk.core.ValueCommandInput, inputs.itemById("number_of_teeth"))
     module_value = cast(adsk.core.ValueCommandInput, inputs.itemById("module"))
+    root_fillet_radius_value = cast(adsk.core.ValueCommandInput, inputs.itemById("rootFilletRadius"))
     thickness = cast(adsk.core.ValueCommandInput, inputs.itemById("thickness"))
 
     name = futil.find_next_name(design, "SpurGear")
@@ -139,6 +158,7 @@ def command_run(args: adsk.core.CommandEventArgs, preview: bool):
         pressure_angle_value=pressure_angle_value,
         number_of_teeth_value=number_of_teeth_value,
         module_value=module_value,
+        root_fillet_radius_value=root_fillet_radius_value,
         gear_height_value=thickness,
         preview=preview,
         name=name
