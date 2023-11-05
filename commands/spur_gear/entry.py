@@ -1,6 +1,7 @@
 import adsk.core
 import adsk.fusion
 import os
+import math
 from typing import cast
 import time
 
@@ -24,6 +25,9 @@ ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resource
 local_handlers = []
 
 _img_input_metric = adsk.core.ImageCommandInput.cast(None)
+_error_message = adsk.core.TextBoxCommandInput.cast(None)
+_units: str = None
+
 
 # Executed when add-in is run.
 def start():
@@ -63,9 +67,21 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
     design = adsk.fusion.Design.cast(app.activeProduct)
+    default_units = design.unitsManager.defaultLengthUnits
+
+    # Determine whether to use inches or millimeters as the initial default.
+    global _units
+    if default_units == "in" or default_units == "ft":
+        _units = "in"
+    else:
+        _units = "mm"
+
+    global _img_input_metric, _error_message
 
     # help image
-    _img_input_metric = inputs.addImageCommandInput('gearImageMetric', '', 'commands/spur_gear/resources/gear-metric.png')
+    _img_input_metric = inputs.addImageCommandInput(
+        "gearImageMetric", "", "commands/spur_gear/resources/gear-metric.png"
+    )
     _img_input_metric.isFullWidth = True
 
     # pressure angle
@@ -74,10 +90,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         default_value = attr.value
     else:
         default_value = "20 deg"
-    inputs.addAngleValueCommandInput(
-        "pressure_angle",
-        "Pressure Angle",
-        adsk.core.ValueInput.createByString(default_value)
+    i = inputs.addAngleValueCommandInput(
+        "pressure_angle", "Pressure Angle", adsk.core.ValueInput.createByString(default_value)
     )
 
     # number of teeth
@@ -86,12 +100,10 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         default_value = attr.value
     else:
         default_value = "20"
-    inputs.addValueInput(
-        "number_of_teeth",
-        "Number of Teeth",
-        "",
-        adsk.core.ValueInput.createByString(default_value)
+    i = inputs.addValueInput(
+        "number_of_teeth", "Number of Teeth", "", adsk.core.ValueInput.createByString(default_value)
     )
+    i.minimumValue = 1
 
     # module
     attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "module")
@@ -99,7 +111,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         default_value = attr.value
     else:
         default_value = "5 mm"
-    inputs.addValueInput("module", "Module", "cm", adsk.core.ValueInput.createByString(default_value))
+    inputs.addDistanceValueCommandInput("module", "Module", adsk.core.ValueInput.createByString(default_value))
 
     # root fillet radius
     attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "rootFilletRadius")
@@ -107,7 +119,9 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         default_value = attr.value
     else:
         default_value = "1 mm"
-    inputs.addValueInput("rootFilletRadius", "Root Fillet Radius", "cm", adsk.core.ValueInput.createByString(default_value))
+    inputs.addDistanceValueCommandInput(
+        "rootFilletRadius", "Root Fillet Radius", adsk.core.ValueInput.createByString(default_value)
+    )
 
     # thickness
     attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "thickness")
@@ -115,7 +129,14 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         default_value = attr.value
     else:
         default_value = "5 mm"
-    inputs.addValueInput("thickness", "Gear Height", "cm", adsk.core.ValueInput.createByString(default_value))
+    i = inputs.addDistanceValueCommandInput(
+        "thickness", "Gear Height", adsk.core.ValueInput.createByString(default_value)
+    )
+    i.setManipulator(adsk.core.Point3D.create(0, 0, 0), adsk.core.Vector3D.create(0, 0, 1))
+
+    # error message
+    _error_message = inputs.addTextBoxCommandInput("errorMessage", "", "", 2, True)
+    _error_message.isFullWidth = True
 
     # handlers
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
@@ -144,11 +165,11 @@ def command_execute_preview(args: adsk.core.CommandEventArgs):
 def command_run(args: adsk.core.CommandEventArgs, preview: bool):
     design = adsk.fusion.Design.cast(app.activeProduct)
     inputs = args.command.commandInputs
-    pressure_angle_value = cast(adsk.core.ValueCommandInput, inputs.itemById("pressure_angle"))
+    pressure_angle_value = cast(adsk.core.AngleValueCommandInput, inputs.itemById("pressure_angle"))
     number_of_teeth_value = cast(adsk.core.ValueCommandInput, inputs.itemById("number_of_teeth"))
-    module_value = cast(adsk.core.ValueCommandInput, inputs.itemById("module"))
-    root_fillet_radius_value = cast(adsk.core.ValueCommandInput, inputs.itemById("rootFilletRadius"))
-    thickness = cast(adsk.core.ValueCommandInput, inputs.itemById("thickness"))
+    module_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("module"))
+    root_fillet_radius_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("rootFilletRadius"))
+    thickness_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("thickness"))
 
     name = futil.find_next_name(design, "SpurGear")
 
@@ -159,18 +180,18 @@ def command_run(args: adsk.core.CommandEventArgs, preview: bool):
         number_of_teeth_value=number_of_teeth_value,
         module_value=module_value,
         root_fillet_radius_value=root_fillet_radius_value,
-        gear_height_value=thickness,
+        gear_height_value=thickness_value,
         preview=preview,
-        name=name
+        name=name,
     )
     end_time = time.time()
-    futil.log(f'create took {end_time - start_time}')
+    futil.log(f"create took {end_time - start_time}")
 
     if not preview:
         design.attributes.add(ATTRIBUTE_GROUP_NAME, "pressureAngle", pressure_angle_value.expression)
         design.attributes.add(ATTRIBUTE_GROUP_NAME, "numTeeth", number_of_teeth_value.expression)
         design.attributes.add(ATTRIBUTE_GROUP_NAME, "module", module_value.expression)
-        design.attributes.add(ATTRIBUTE_GROUP_NAME, "thickness", thickness.expression)
+        design.attributes.add(ATTRIBUTE_GROUP_NAME, "thickness", thickness_value.expression)
 
 
 # This event handler is called when the user changes anything in the command dialog
@@ -186,18 +207,45 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
 # which allows you to verify that all of the inputs are valid and enables the OK button.
 def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
     inputs = args.inputs
+    design = adsk.fusion.Design.cast(app.activeProduct)
+    args.areInputsValid = True
 
-    # Verify the validity of the input values. This controls if the OK button is enabled or not.
-    value_input = cast(adsk.core.ValueCommandInput, inputs.itemById("pressure_angle"))
-    if value_input.value >= 0:
-        args.areInputsValid = True
-    else:
+    pressure_angle_value = cast(adsk.core.AngleValueCommandInput, inputs.itemById("pressure_angle"))
+    number_of_teeth_value = cast(adsk.core.ValueCommandInput, inputs.itemById("number_of_teeth"))
+    module_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("module"))
+    root_fillet_radius_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("rootFilletRadius"))
+    thickness_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("thickness"))
+
+    # verify pressure angle
+    if pressure_angle_value.value < math.radians(0):
         args.areInputsValid = False
+        _error_message.text = "Pressure angle must be greater than 0"
+        return
+    if pressure_angle_value.value > math.radians(45):
+        args.areInputsValid = False
+        _error_message.text = "Pressure angle must be less than than 45 degrees"
+        return
+
+    # verify pressure angle
+    if number_of_teeth_value.value < 1:
+        args.areInputsValid = False
+        _error_message.text = "Must have at least 1 tooth"
+        return
+
+    pitch = math.pi * module_value.value
+    tooth_thickness = pitch / 2
+    if root_fillet_radius_value.value > tooth_thickness * 0.4:
+        args.areInputsValid = False
+        max_value = design.unitsManager.formatInternalValue(tooth_thickness * 0.4, _units, True)
+        _error_message.text = f"The root fillet radius is too large. It must be less than {max_value}"
+        return
+
+    # prevent change handler from firing over and over again
+    if _error_message.text != "":
+        _error_message.text = ""
 
 
 # This event handler is called when the command terminates.
-def command_destroy(args: adsk.core.CommandEventArgs):
-    futil.log(f"{CMD_NAME} Command Destroy Event")
-
+def command_destroy(_args: adsk.core.CommandEventArgs):
     global local_handlers
     local_handlers = []

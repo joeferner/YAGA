@@ -14,11 +14,11 @@ class SpurGear:
     @staticmethod
     def create_component(
             app: adsk.core.Application,
-            pressure_angle_value: adsk.core.ValueCommandInput,
+            pressure_angle_value: adsk.core.AngleValueCommandInput,
             number_of_teeth_value: adsk.core.ValueCommandInput,
-            module_value: adsk.core.ValueCommandInput,
-            root_fillet_radius_value: adsk.core.ValueCommandInput,
-            gear_height_value: adsk.core.ValueCommandInput,
+            module_value: adsk.core.DistanceValueCommandInput,
+            root_fillet_radius_value: adsk.core.DistanceValueCommandInput,
+            gear_height_value: adsk.core.DistanceValueCommandInput,
             preview: bool = False,
             name: str | None = None,
     ):
