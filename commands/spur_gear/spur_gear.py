@@ -180,6 +180,8 @@ class SpurGear:
             base_circle = cast(adsk.fusion.SketchCircle, sketch_tooth.project(base_circle).item(0))
             dedendum_line_a = cast(adsk.fusion.SketchLine, sketch_tooth.project(dedendum_line_a).item(0))
             dedendum_line_b = cast(adsk.fusion.SketchLine, sketch_tooth.project(dedendum_line_b).item(0))
+            root_fillet_radius_a = cast(adsk.fusion.SketchArc, sketch_tooth.project(root_fillet_radius_a).item(0))
+            root_fillet_radius_b = cast(adsk.fusion.SketchArc, sketch_tooth.project(root_fillet_radius_b).item(0))
 
             SpurGear.__create_tooth_top_land(
                 sketch_tooth,
@@ -200,6 +202,8 @@ class SpurGear:
                 base_circle,
                 dedendum_line_a,
                 dedendum_line_b,
+                root_fillet_radius_a,
+                root_fillet_radius_b,
                 name,
             )
 
@@ -463,6 +467,8 @@ class SpurGear:
             base_circle: adsk.fusion.SketchCircle,
             dedendum_line_a: adsk.fusion.SketchLine,
             dedendum_line_b: adsk.fusion.SketchLine,
+            root_fillet_radius_a: adsk.fusion.SketchArc,
+            root_fillet_radius_b: adsk.fusion.SketchArc,
             name: str | None,
     ) -> adsk.fusion.Feature:
         profiles = adsk.core.ObjectCollection.create()
@@ -478,6 +484,17 @@ class SpurGear:
         found_profiles = futil.find_profiles([base_circle, spline, mirror_spline])
         if not (len(found_profiles) == 1 or len(found_profiles) == 2):
             raise Exception(f"expected 1 or 2 profile, found {len(found_profiles)} for spur gear tooth (tip)")
+        profiles.add(futil.find_smallest_profile(found_profiles))
+
+        # root fillet radius
+        found_profiles = futil.find_profiles([root_fillet_radius_a, dedendum_line_a, root_circle])
+        if not (len(found_profiles) == 1 or len(found_profiles) == 2):
+            raise Exception(f"expected 1 or 2 profile, found {len(found_profiles)} for spur gear tooth (fillet radius a)")
+        profiles.add(futil.find_smallest_profile(found_profiles))
+
+        found_profiles = futil.find_profiles([root_fillet_radius_b, dedendum_line_b, root_circle])
+        if not (len(found_profiles) == 1 or len(found_profiles) == 2):
+            raise Exception(f"expected 1 or 2 profile, found {len(found_profiles)} for spur gear tooth (fillet radius b)")
         profiles.add(futil.find_smallest_profile(found_profiles))
 
         tooth_feature = comp.features.extrudeFeatures.addSimple(
