@@ -4,6 +4,7 @@ import os
 import math
 from typing import cast
 import time
+from pathlib import Path
 
 from .spur_gear import SpurGear
 from ...lib import fusion360utils as futil
@@ -18,14 +19,15 @@ CMD_NAME = "Spur Gear"
 CMD_Description = "Creates a spur gear"
 ATTRIBUTE_GROUP_NAME = "YAGA_SpurGear"
 
-ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources", "")
+RESOURCES_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources", "")
 
 # Local list of event handlers used to maintain a reference so
 # they are not released and garbage collected.
 local_handlers = []
 
 _error_message = adsk.core.TextBoxCommandInput.cast(None)
-_units: str = None
+_units: str | None = None
+_help_pressure_angle: str | None = None
 
 
 # Executed when add-in is run.
@@ -34,7 +36,10 @@ def start():
     command_definition = ui.commandDefinitions.itemById(CMD_ID)
     if command_definition:
         command_definition.deleteMe()
-    command_definition = ui.commandDefinitions.addButtonDefinition(CMD_ID, CMD_NAME, CMD_Description, ICON_FOLDER)
+    command_definition = ui.commandDefinitions.addButtonDefinition(CMD_ID, CMD_NAME, CMD_Description, RESOURCES_FOLDER)
+
+    global _help_pressure_angle
+    _help_pressure_angle = Path(os.path.join(RESOURCES_FOLDER, "help/pressure_angle.html")).read_text()
 
     # Define an event handler for the command created event. It will be called when the button is clicked.
     futil.add_handler(command_definition.commandCreated, command_created)
@@ -76,9 +81,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         _units = "mm"
 
     # help image
-    i = inputs.addImageCommandInput(
-        "gearImageMetric", "", "commands/spur_gear/resources/gear-metric.png"
-    )
+    i = inputs.addImageCommandInput("gearImageMetric", "", "commands/spur_gear/resources/gear-metric.png")
     i.isFullWidth = True
 
     # pressure angle
@@ -90,6 +93,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     i = inputs.addValueInput(
         "pressure_angle", "Pressure Angle", "deg", adsk.core.ValueInput.createByString(default_value)
     )
+    i.tooltip = "Pressure angle is the leaning angle of a gear tooth, an element determining the tooth profile."
+    i.tooltipDescription = _help_pressure_angle
 
     # number of teeth
     attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "numTeeth")
@@ -108,7 +113,9 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         default_value = attr.value
     else:
         default_value = "5 mm"
-    inputs.addValueInput("module", "Module", "mm", adsk.core.ValueInput.createByString(default_value))
+    i = inputs.addValueInput("module", "Module", "mm", adsk.core.ValueInput.createByString(default_value))
+    i.tooltip = ("The unit of size that indicates how big or small a gear is. It is the ratio of the reference "
+                 "diameter of the gear divided by the number of teeth. The larger the module the larger the gear.")
 
     # root fillet radius
     attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "rootFilletRadius")
@@ -119,6 +126,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     i = inputs.addValueInput(
         "rootFilletRadius", "Root Fillet Radius", "mm", adsk.core.ValueInput.createByString(default_value)
     )
+    i.tooltip = "The small radius that connects the tooth profile to the root circle."
 
     # thickness
     attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "thickness")
@@ -210,7 +218,6 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
     number_of_teeth_value = cast(adsk.core.ValueCommandInput, inputs.itemById("number_of_teeth"))
     module_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("module"))
     root_fillet_radius_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("rootFilletRadius"))
-    thickness_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("thickness"))
 
     # verify pressure angle
     if pressure_angle_value.value < math.radians(0):
