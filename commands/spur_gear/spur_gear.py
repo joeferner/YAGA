@@ -16,8 +16,8 @@ class SpurGear:
             module_value: adsk.core.ValueCommandInput,
             root_fillet_radius_value: adsk.core.ValueCommandInput,
             gear_height_value: adsk.core.DistanceValueCommandInput,
-            preview: bool = False,
-            name: str | None = None,
+            preview: bool,
+            name: str | None,
     ):
         design = adsk.fusion.Design.cast(app.activeProduct)
         units_mgr = app.activeProduct.unitsManager
@@ -107,6 +107,8 @@ class SpurGear:
         if preview:
             sketch_circles.isVisible = True
         else:
+            sketch_circles.isVisible = False
+
             # resizing a gear confuses Fusion 360, so we need to put the tooth top land on a separate sketch to force
             # the computations in the correct order
             sketch_tooth_profile = comp.sketches.add(sketch_plane)
@@ -500,13 +502,15 @@ class SpurGear:
         found_profiles = futil.find_profiles([root_fillet_radius_a, dedendum_line_a, root_circle])
         if not (len(found_profiles) == 1 or len(found_profiles) == 2):
             raise Exception(
-                f"expected 1 or 2 profile, found {len(found_profiles)} for spur gear tooth (fillet radius a)")
+                f"expected 1 or 2 profile, found {len(found_profiles)} for spur gear tooth (fillet radius a)"
+            )
         profiles.add(futil.find_smallest_profile(found_profiles))
 
         found_profiles = futil.find_profiles([root_fillet_radius_b, dedendum_line_b, root_circle])
         if not (len(found_profiles) == 1 or len(found_profiles) == 2):
             raise Exception(
-                f"expected 1 or 2 profile, found {len(found_profiles)} for spur gear tooth (fillet radius b)")
+                f"expected 1 or 2 profile, found {len(found_profiles)} for spur gear tooth (fillet radius b)"
+            )
         profiles.add(futil.find_smallest_profile(found_profiles))
 
         tooth_feature = comp.features.extrudeFeatures.addSimple(

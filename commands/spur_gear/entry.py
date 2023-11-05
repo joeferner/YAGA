@@ -5,6 +5,7 @@ import math
 from typing import cast
 import time
 from pathlib import Path
+import traceback
 
 from .spur_gear import SpurGear
 from ...lib import fusion360utils as futil
@@ -84,6 +85,11 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     i = inputs.addImageCommandInput("gearImageMetric", "", "commands/spur_gear/resources/gear-metric.png")
     i.isFullWidth = True
 
+    # name
+    name = futil.find_next_name(design, "SpurGear")
+    i = inputs.addStringValueInput("name", "Name", name)
+    i.tooltip = "Name of component and dimension prefixes."
+
     # pressure angle
     attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "pressureAngle")
     if attr:
@@ -114,8 +120,10 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     else:
         default_value = "5 mm"
     i = inputs.addValueInput("module", "Module", "mm", adsk.core.ValueInput.createByString(default_value))
-    i.tooltip = ("The unit of size that indicates how big or small a gear is. It is the ratio of the reference "
-                 "diameter of the gear divided by the number of teeth. The larger the module the larger the gear.")
+    i.tooltip = (
+        "The unit of size that indicates how big or small a gear is. It is the ratio of the reference "
+        "diameter of the gear divided by the number of teeth. The larger the module the larger the gear."
+    )
 
     # root fillet radius
     attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "rootFilletRadius")
@@ -145,6 +153,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     _error_message.isFullWidth = True
 
     # handlers
+    global local_handlers
     futil.add_handler(args.command.execute, command_execute, local_handlers=local_handlers)
     futil.add_handler(args.command.inputChanged, command_input_changed, local_handlers=local_handlers)
     futil.add_handler(
@@ -172,13 +181,17 @@ def command_run(args: adsk.core.CommandEventArgs, preview: bool):
     start_time = time.time()
     design = adsk.fusion.Design.cast(app.activeProduct)
     inputs = args.command.commandInputs
+    name_value = cast(adsk.core.StringValueCommandInput, inputs.itemById("name"))
     pressure_angle_value = cast(adsk.core.ValueCommandInput, inputs.itemById("pressure_angle"))
     number_of_teeth_value = cast(adsk.core.ValueCommandInput, inputs.itemById("number_of_teeth"))
     module_value = cast(adsk.core.ValueCommandInput, inputs.itemById("module"))
     root_fillet_radius_value = cast(adsk.core.ValueCommandInput, inputs.itemById("rootFilletRadius"))
     thickness_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("thickness"))
 
-    name = futil.find_next_name(design, "SpurGear")
+    if preview:
+        name = f"preview_{name_value.value}"
+    else:
+        name = name_value.value
 
     SpurGear.create_component(
         app,
@@ -187,8 +200,8 @@ def command_run(args: adsk.core.CommandEventArgs, preview: bool):
         module_value=module_value,
         root_fillet_radius_value=root_fillet_radius_value,
         gear_height_value=thickness_value,
-        preview=preview,
         name=name,
+        preview=preview,
     )
 
     if not preview:
@@ -210,42 +223,57 @@ def command_input_changed(args: adsk.core.InputChangedEventArgs):
 # This event handler is called when the user interacts with any of the inputs in the dialog
 # which allows you to verify that all of the inputs are valid and enables the OK button.
 def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
-    inputs = args.inputs
-    design = adsk.fusion.Design.cast(app.activeProduct)
-    args.areInputsValid = True
+    try:
+        inputs = args.inputs
+        design = adsk.fusion.Design.cast(app.activeProduct)
+        args.areInputsValid = True
 
-    pressure_angle_value = cast(adsk.core.AngleValueCommandInput, inputs.itemById("pressure_angle"))
-    number_of_teeth_value = cast(adsk.core.ValueCommandInput, inputs.itemById("number_of_teeth"))
-    module_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("module"))
-    root_fillet_radius_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("rootFilletRadius"))
+        name_value = cast(adsk.core.StringValueCommandInput, inputs.itemById("name"))
+        pressure_angle_value = cast(adsk.core.AngleValueCommandInput, inputs.itemById("pressure_angle"))
+        number_of_teeth_value = cast(adsk.core.ValueCommandInput, inputs.itemById("number_of_teeth"))
+        module_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("module"))
+        root_fillet_radius_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("rootFilletRadius"))
 
-    # verify pressure angle
-    if pressure_angle_value.value < math.radians(0):
-        args.areInputsValid = False
-        _error_message.text = "Pressure angle must be greater than 0"
-        return
-    if pressure_angle_value.value > math.radians(45):
-        args.areInputsValid = False
-        _error_message.text = "Pressure angle must be less than than 45 degrees"
-        return
+        # name
+        if len(name_value.value) == 0:
+            args.areInputsValid = False
+            _error_message.text = "Name is required"
+            return
+        if futil.is_name_taken(design, f"{name_value.value}_"):
+            args.areInputsValid = False
+            _error_message.text = "Name already found"
+            return
 
-    # verify pressure angle
-    if number_of_teeth_value.value < 1:
-        args.areInputsValid = False
-        _error_message.text = "Must have at least 1 tooth"
-        return
+        # verify pressure angle
+        if pressure_angle_value.value < math.radians(0):
+            args.areInputsValid = False
+            _error_message.text = "Pressure angle must be greater than 0"
+            return
+        if pressure_angle_value.value > math.radians(45):
+            args.areInputsValid = False
+            _error_message.text = "Pressure angle must be less than than 45 degrees"
+            return
 
-    pitch = math.pi * module_value.value
-    tooth_thickness = pitch / 2
-    if root_fillet_radius_value.value > tooth_thickness * 0.4:
-        args.areInputsValid = False
-        max_value = design.unitsManager.formatInternalValue(tooth_thickness * 0.4, _units, True)
-        _error_message.text = f"The root fillet radius is too large. It must be less than {max_value}"
-        return
+        # verify pressure angle
+        if number_of_teeth_value.value < 1:
+            args.areInputsValid = False
+            _error_message.text = "Must have at least 1 tooth"
+            return
 
-    # prevent change handler from firing over and over again
-    if _error_message.text != "":
-        _error_message.text = ""
+        pitch = math.pi * module_value.value
+        tooth_thickness = pitch / 2
+        if root_fillet_radius_value.value > tooth_thickness * 0.4:
+            args.areInputsValid = False
+            max_value = design.unitsManager.formatInternalValue(tooth_thickness * 0.4, _units, True)
+            _error_message.text = f"The root fillet radius is too large. It must be less than {max_value}"
+            return
+
+        # prevent change handler from firing over and over again
+        if _error_message.text != "":
+            _error_message.text = ""
+    except Exception:
+        if ui:
+            ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
 
 
 # This event handler is called when the command terminates.

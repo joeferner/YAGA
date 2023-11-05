@@ -124,6 +124,10 @@ def find_next_name(design: adsk.fusion.Design, prefix: str) -> str | None:
     return None
 
 
+def is_name_taken(design: adsk.fusion.Design, prefix: str) -> bool:
+    return len(find_names_with_prefix(design, prefix)) > 0
+
+
 def find_names_with_prefix(design: adsk.fusion.Design, prefix: str) -> list[str]:
     results: list[str] = []
     for occ in design.rootComponent.occurrences:
