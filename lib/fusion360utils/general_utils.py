@@ -135,3 +135,7 @@ def find_names_with_prefix(design: adsk.fusion.Design, prefix: str) -> list[str]
             if extrude.name.startswith(prefix):
                 results.append(extrude.name)
     return results
+
+
+def vector3d_from_pts(pt1: adsk.core.Point3D, pt2: adsk.core.Point3D) -> adsk.core.Vector3D:
+    return adsk.core.Vector3D.create(pt2.x - pt1.x, pt2.x - pt1.x, pt2.x - pt1.x)

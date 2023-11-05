@@ -24,7 +24,6 @@ ICON_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resource
 # they are not released and garbage collected.
 local_handlers = []
 
-_img_input_metric = adsk.core.ImageCommandInput.cast(None)
 _error_message = adsk.core.TextBoxCommandInput.cast(None)
 _units: str = None
 
@@ -76,13 +75,11 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     else:
         _units = "mm"
 
-    global _img_input_metric, _error_message
-
     # help image
-    _img_input_metric = inputs.addImageCommandInput(
+    i = inputs.addImageCommandInput(
         "gearImageMetric", "", "commands/spur_gear/resources/gear-metric.png"
     )
-    _img_input_metric.isFullWidth = True
+    i.isFullWidth = True
 
     # pressure angle
     attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "pressureAngle")
@@ -90,8 +87,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         default_value = attr.value
     else:
         default_value = "20 deg"
-    i = inputs.addAngleValueCommandInput(
-        "pressure_angle", "Pressure Angle", adsk.core.ValueInput.createByString(default_value)
+    i = inputs.addValueInput(
+        "pressure_angle", "Pressure Angle", "deg", adsk.core.ValueInput.createByString(default_value)
     )
 
     # number of teeth
@@ -111,7 +108,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         default_value = attr.value
     else:
         default_value = "5 mm"
-    inputs.addDistanceValueCommandInput("module", "Module", adsk.core.ValueInput.createByString(default_value))
+    inputs.addValueInput("module", "Module", "mm", adsk.core.ValueInput.createByString(default_value))
 
     # root fillet radius
     attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "rootFilletRadius")
@@ -119,8 +116,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         default_value = attr.value
     else:
         default_value = "1 mm"
-    inputs.addDistanceValueCommandInput(
-        "rootFilletRadius", "Root Fillet Radius", adsk.core.ValueInput.createByString(default_value)
+    i = inputs.addValueInput(
+        "rootFilletRadius", "Root Fillet Radius", "mm", adsk.core.ValueInput.createByString(default_value)
     )
 
     # thickness
@@ -135,6 +132,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     i.setManipulator(adsk.core.Point3D.create(0, 0, 0), adsk.core.Vector3D.create(0, 0, 1))
 
     # error message
+    global _error_message
     _error_message = inputs.addTextBoxCommandInput("errorMessage", "", "", 2, True)
     _error_message.isFullWidth = True
 
@@ -165,10 +163,10 @@ def command_execute_preview(args: adsk.core.CommandEventArgs):
 def command_run(args: adsk.core.CommandEventArgs, preview: bool):
     design = adsk.fusion.Design.cast(app.activeProduct)
     inputs = args.command.commandInputs
-    pressure_angle_value = cast(adsk.core.AngleValueCommandInput, inputs.itemById("pressure_angle"))
+    pressure_angle_value = cast(adsk.core.ValueCommandInput, inputs.itemById("pressure_angle"))
     number_of_teeth_value = cast(adsk.core.ValueCommandInput, inputs.itemById("number_of_teeth"))
-    module_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("module"))
-    root_fillet_radius_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("rootFilletRadius"))
+    module_value = cast(adsk.core.ValueCommandInput, inputs.itemById("module"))
+    root_fillet_radius_value = cast(adsk.core.ValueCommandInput, inputs.itemById("rootFilletRadius"))
     thickness_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("thickness"))
 
     name = futil.find_next_name(design, "SpurGear")
