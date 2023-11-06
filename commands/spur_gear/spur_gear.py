@@ -16,6 +16,7 @@ class SpurGear:
             module_value: adsk.core.ValueCommandInput,
             root_fillet_radius_value: adsk.core.ValueCommandInput,
             gear_height_value: adsk.core.DistanceValueCommandInput,
+            rotation_value: adsk.core.ValueCommandInput,
             preview: bool,
             name: str | None,
     ):
@@ -48,6 +49,9 @@ class SpurGear:
         tooth_thickness_expr = f"( {pitch_expr} / 2 )"
         half_tooth_thickness_expr = f"( {tooth_thickness_expr} / 2 )"
 
+        rotation_expr = f"({rotation_value.expression})"
+
+        # create component
         comp_occurrence = design.rootComponent.occurrences.addNewComponent(adsk.core.Matrix3D.create())
         comp = comp_occurrence.component
         if name:
@@ -108,6 +112,12 @@ class SpurGear:
             sketch_circles.isVisible = True
         else:
             sketch_circles.isVisible = False
+
+            center_axis_input = comp.constructionAxes.createInput()
+            center_axis_input.setByCircularFace(root_circle_extrude.faces[0])
+            center_axis = comp.constructionAxes.add(center_axis_input)
+            if name:
+                center_axis.name = f"{name}_centerAxis"
 
             # resizing a gear confuses Fusion 360, so we need to put the tooth top land on a separate sketch to force
             # the computations in the correct order
@@ -214,8 +224,18 @@ class SpurGear:
                 name,
             )
 
+            tooth_rotation = SpurGear.__create_tooth_rotation(
+                comp,
+                tooth_feature,
+                root_circle,
+                root_circle_extrude,
+                center_axis,
+                rotation_expr,
+                name
+            )
+
             # rotate tooth
-            tooth_pattern = SpurGear.__rotate_tooth_feature(
+            tooth_pattern = SpurGear.__create_tooth_circular_pattern(
                 comp, tooth_feature, root_circle, number_of_teeth_expr, name
             )
 
@@ -225,6 +245,16 @@ class SpurGear:
             )
             if name:
                 group.name = name
+
+            # TODO remove this code
+            # comp = design.allComponents[1]
+            # tooth_rotation = comp.features.moveFeatures[0]
+            # center_axis = comp.constructionAxes[0]
+            # center_axis = comp.zConstructionAxis
+            # rotation_expr = "5 deg"
+            # group.isCollapsed = False
+            # tooth_rotation.timelineObject.rollTo(True)
+            # tooth_rotation.redefineAsRotate(center_axis, adsk.core.ValueInput.createByString(rotation_expr))
 
         return
 
@@ -524,7 +554,34 @@ class SpurGear:
         return tooth_feature
 
     @staticmethod
-    def __rotate_tooth_feature(
+    def __create_tooth_rotation(
+            comp: adsk.fusion.Component,
+            tooth_feature: adsk.fusion.Feature,
+            root_circle: adsk.fusion.SketchCircle,
+            root_circle_extrude: adsk.fusion.ExtrudeFeature,
+            center_axis: adsk.fusion.ConstructionAxis,
+            rotation_expr: str,
+            name: str | None,
+    ) -> adsk.fusion.MoveFeature:
+        move_create_input = adsk.core.ObjectCollection.create()
+        move_create_input.add(tooth_feature.bodies[0])
+        move_input = comp.features.moveFeatures.createInput2(move_create_input)
+        move_input.defineAsRotate(root_circle.geometry, adsk.core.ValueInput.createByString(rotation_expr))
+        # TODO remove this code
+        # move_input.defineAsTranslateXYZ(
+        #     adsk.core.ValueInput.createByString("0 mm"),
+        #     adsk.core.ValueInput.createByString("0 mm"),
+        #     adsk.core.ValueInput.createByString("0 mm"),
+        #     True
+        # )
+        feature = comp.features.moveFeatures.add(move_input)
+        if name:
+            feature.name = f"{name}_rotation"
+
+        return feature
+
+    @staticmethod
+    def __create_tooth_circular_pattern(
             comp: adsk.fusion.Component,
             tooth_feature: adsk.fusion.Feature,
             root_circle: adsk.fusion.SketchCircle,
@@ -532,7 +589,7 @@ class SpurGear:
             name: str | None,
     ) -> adsk.fusion.CircularPatternFeature:
         entities = adsk.core.ObjectCollection.create()
-        entities.add(tooth_feature)
+        entities.add(tooth_feature.bodies[0])
         axis = root_circle
         feature_input = comp.features.circularPatternFeatures.createInput(entities, axis)
         feature_input.quantity = adsk.core.ValueInput.createByString(number_of_teeth_expr)

@@ -147,6 +147,17 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     )
     i.setManipulator(adsk.core.Point3D.create(0, 0, 0), adsk.core.Vector3D.create(0, 0, 1))
 
+    # thickness
+    attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "rotation")
+    if attr:
+        default_value = attr.value
+    else:
+        default_value = "0 deg"
+    i = inputs.addValueInput(
+        "rotation", "Rotation", "deg", adsk.core.ValueInput.createByString(default_value)
+    )
+    i.tooltip = "Rotation applied to the whole gear, this can be used to mesh multiple gears together."
+
     # error message
     global _error_message
     _error_message = inputs.addTextBoxCommandInput("errorMessage", "", "", 2, True)
@@ -187,6 +198,7 @@ def command_run(args: adsk.core.CommandEventArgs, preview: bool):
     module_value = cast(adsk.core.ValueCommandInput, inputs.itemById("module"))
     root_fillet_radius_value = cast(adsk.core.ValueCommandInput, inputs.itemById("rootFilletRadius"))
     thickness_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("thickness"))
+    rotation_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("rotation"))
 
     if preview:
         name = f"preview_{name_value.value}"
@@ -200,6 +212,7 @@ def command_run(args: adsk.core.CommandEventArgs, preview: bool):
         module_value=module_value,
         root_fillet_radius_value=root_fillet_radius_value,
         gear_height_value=thickness_value,
+        rotation_value=rotation_value,
         name=name,
         preview=preview,
     )
@@ -209,6 +222,7 @@ def command_run(args: adsk.core.CommandEventArgs, preview: bool):
         design.attributes.add(ATTRIBUTE_GROUP_NAME, "numTeeth", number_of_teeth_value.expression)
         design.attributes.add(ATTRIBUTE_GROUP_NAME, "module", module_value.expression)
         design.attributes.add(ATTRIBUTE_GROUP_NAME, "thickness", thickness_value.expression)
+        design.attributes.add(ATTRIBUTE_GROUP_NAME, "rotation", rotation_value.expression)
 
     end_time = time.time()
     futil.log(f"create took {end_time - start_time}")
