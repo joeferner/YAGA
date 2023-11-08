@@ -227,8 +227,6 @@ class SpurGear:
             SpurGear.__create_tooth_rotation(
                 comp,
                 tooth_feature,
-                root_circle,
-                root_circle_extrude,
                 center_axis,
                 rotation_expr,
                 name
@@ -547,8 +545,6 @@ class SpurGear:
     def __create_tooth_rotation(
             comp: adsk.fusion.Component,
             tooth_feature: adsk.fusion.Feature,
-            root_circle: adsk.fusion.SketchCircle,
-            root_circle_extrude: adsk.fusion.ExtrudeFeature,
             center_axis: adsk.fusion.ConstructionAxis,
             rotation_expr: str,
             name: str | None,

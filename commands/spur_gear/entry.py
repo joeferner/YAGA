@@ -22,8 +22,7 @@ ATTRIBUTE_GROUP_NAME = "YAGA_SpurGear"
 
 RESOURCES_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources", "")
 
-# Local list of event handlers used to maintain a reference so
-# they are not released and garbage collected.
+# Local list of event handlers used to maintain a reference, so they are not released and garbage collected.
 local_handlers = []
 
 _error_message = adsk.core.TextBoxCommandInput.cast(None)
@@ -198,7 +197,7 @@ def command_run(args: adsk.core.CommandEventArgs, preview: bool):
     module_value = cast(adsk.core.ValueCommandInput, inputs.itemById("module"))
     root_fillet_radius_value = cast(adsk.core.ValueCommandInput, inputs.itemById("rootFilletRadius"))
     thickness_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("thickness"))
-    rotation_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("rotation"))
+    rotation_value = cast(adsk.core.ValueCommandInput, inputs.itemById("rotation"))
 
     if preview:
         name = f"preview_{name_value.value}"
@@ -230,12 +229,12 @@ def command_run(args: adsk.core.CommandEventArgs, preview: bool):
 
 # This event handler is called when the user changes anything in the command dialog
 # allowing you to modify values of other inputs based on that change.
-def command_input_changed(args: adsk.core.InputChangedEventArgs):
+def command_input_changed(_args: adsk.core.InputChangedEventArgs):
     pass
 
 
 # This event handler is called when the user interacts with any of the inputs in the dialog
-# which allows you to verify that all of the inputs are valid and enables the OK button.
+# which allows you to verify that all the inputs are valid and enables the OK button.
 def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
     try:
         inputs = args.inputs
