@@ -224,7 +224,7 @@ class SpurGear:
                 name,
             )
 
-            tooth_rotation = SpurGear.__create_tooth_rotation(
+            SpurGear.__create_tooth_rotation(
                 comp,
                 tooth_feature,
                 root_circle,
@@ -245,16 +245,6 @@ class SpurGear:
             )
             if name:
                 group.name = name
-
-            # TODO remove this code
-            # comp = design.allComponents[1]
-            # tooth_rotation = comp.features.moveFeatures[0]
-            # center_axis = comp.constructionAxes[0]
-            # center_axis = comp.zConstructionAxis
-            # rotation_expr = "5 deg"
-            # group.isCollapsed = False
-            # tooth_rotation.timelineObject.rollTo(True)
-            # tooth_rotation.redefineAsRotate(center_axis, adsk.core.ValueInput.createByString(rotation_expr))
 
         return
 
@@ -563,17 +553,12 @@ class SpurGear:
             rotation_expr: str,
             name: str | None,
     ) -> adsk.fusion.MoveFeature:
+        occurrence = comp.parentDesign.rootComponent.occurrencesByComponent(comp)[0]
+        center_axis = center_axis.createForAssemblyContext(occurrence)
         move_create_input = adsk.core.ObjectCollection.create()
         move_create_input.add(tooth_feature.bodies[0])
         move_input = comp.features.moveFeatures.createInput2(move_create_input)
-        move_input.defineAsRotate(root_circle.geometry, adsk.core.ValueInput.createByString(rotation_expr))
-        # TODO remove this code
-        # move_input.defineAsTranslateXYZ(
-        #     adsk.core.ValueInput.createByString("0 mm"),
-        #     adsk.core.ValueInput.createByString("0 mm"),
-        #     adsk.core.ValueInput.createByString("0 mm"),
-        #     True
-        # )
+        move_input.defineAsRotate(center_axis, adsk.core.ValueInput.createByString(rotation_expr))
         feature = comp.features.moveFeatures.add(move_input)
         if name:
             feature.name = f"{name}_rotation"
