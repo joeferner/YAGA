@@ -110,15 +110,15 @@ def find_smallest_profile(profiles: list[adsk.fusion.Profile]) -> adsk.fusion.Pr
 def find_next_name(design: adsk.fusion.Design, prefix: str) -> str | None:
     matching_names = find_names_with_prefix(design, prefix)
 
-    def is_valid_name(proposed_name: str) -> bool:
+    def _is_valid_name(local_proposed_name: str) -> bool:
         for matching_name in matching_names:
-            if matching_name.startswith(proposed_name):
+            if matching_name.startswith(local_proposed_name):
                 return False
         return True
 
     for i in range(1, 100000):
         proposed_name = f'{prefix}{i}'
-        if is_valid_name(proposed_name):
+        if _is_valid_name(proposed_name):
             return proposed_name
 
     return None
@@ -126,6 +126,10 @@ def find_next_name(design: adsk.fusion.Design, prefix: str) -> str | None:
 
 def is_name_taken(design: adsk.fusion.Design, prefix: str) -> bool:
     return len(find_names_with_prefix(design, prefix)) > 0
+
+
+def is_valid_name(name: str) -> bool:
+    return name.isidentifier()
 
 
 def find_names_with_prefix(design: adsk.fusion.Design, prefix: str) -> list[str]:

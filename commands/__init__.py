@@ -1,8 +1,9 @@
 import adsk.core
 from .spur_gear import entry as spur_gear
+from .rack import entry as rack
 from ..lib import gear_drop_down as gear_drop_down_util
 
-commands = [spur_gear]
+commands = [spur_gear, rack]
 app = adsk.core.Application.get()
 ui = app.userInterface
 

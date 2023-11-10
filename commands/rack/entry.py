@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 import traceback
 
-from .spur_gear import SpurGear
+from .rack import Rack
 from ...lib import fusion360utils as futil
 from ... import config
 from ...lib import gear_drop_down as gear_drop_down_util
@@ -15,10 +15,10 @@ from ...lib import gear_drop_down as gear_drop_down_util
 app = adsk.core.Application.get()
 ui = app.userInterface
 
-CMD_ID = f"{config.COMPANY_NAME}_{config.ADDIN_NAME}_spurGear"
-CMD_NAME = "Spur Gear"
-CMD_Description = "Creates a spur gear"
-ATTRIBUTE_GROUP_NAME = "YAGA_SpurGear"
+CMD_ID = f"{config.COMPANY_NAME}_{config.ADDIN_NAME}_rack"
+CMD_NAME = "Rack"
+CMD_Description = "Creates a rack gear"
+ATTRIBUTE_GROUP_NAME = "YAGA_Rack"
 
 RESOURCES_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources", "")
 SHARED_RESOURCES_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "shared", "resources", "")
@@ -82,19 +82,18 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
         _units = "mm"
 
     default_pressure_angle = "20 deg"
-    default_number_of_teeth = "20"
+    default_number_of_teeth = "10"
     default_module = "5 mm"
     default_root_fillet_radius = "1 mm"
     default_gear_thickness = "5 mm"
-    default_rotation = "0 deg"
     default_backlash = "0 mm"
 
     # help image
-    i = inputs.addImageCommandInput("gearImageMetric", "", "commands/spur_gear/resources/gear-metric.png")
+    i = inputs.addImageCommandInput("gearImageMetric", "", "commands/rack/resources/gear-metric.png")
     i.isFullWidth = True
 
     # name
-    name = futil.find_next_name(design, "SpurGear")
+    name = futil.find_next_name(design, "Rack")
     i = inputs.addStringValueInput("name", "Name", name)
     i.tooltip = "Name of component and dimension prefixes."
 
@@ -127,11 +126,6 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "thickness")
     i = futil.add_distance_value_input(inputs, "thickness", "Thickness", attr, default_gear_thickness)
     i.setManipulator(adsk.core.Point3D.create(0, 0, 0), adsk.core.Vector3D.create(0, 0, 1))
-
-    # rotation
-    attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "rotation")
-    i = futil.add_value_input(inputs, "rotation", "Rotation", angle_units, attr, default_rotation)
-    i.tooltip = "Rotation applied to the whole gear, this can be used to mesh multiple gears together."
 
     # backlash
     attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "backlash")
@@ -178,7 +172,6 @@ def command_run(args: adsk.core.CommandEventArgs, preview: bool):
     module_value = cast(adsk.core.ValueCommandInput, inputs.itemById("module"))
     root_fillet_radius_value = cast(adsk.core.ValueCommandInput, inputs.itemById("rootFilletRadius"))
     thickness_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("thickness"))
-    rotation_value = cast(adsk.core.ValueCommandInput, inputs.itemById("rotation"))
     backlash_value = cast(adsk.core.ValueCommandInput, inputs.itemById("backlash"))
 
     if preview:
@@ -186,14 +179,13 @@ def command_run(args: adsk.core.CommandEventArgs, preview: bool):
     else:
         name = name_value.value
 
-    SpurGear.create_component(
+    Rack.create_component(
         app,
         pressure_angle_value=pressure_angle_value,
         number_of_teeth_value=number_of_teeth_value,
         module_value=module_value,
         root_fillet_radius_value=root_fillet_radius_value,
         gear_thickness_value=thickness_value,
-        rotation_value=rotation_value,
         backlash_value=backlash_value,
         name=name,
         preview=preview,
@@ -205,7 +197,6 @@ def command_run(args: adsk.core.CommandEventArgs, preview: bool):
         design.attributes.add(ATTRIBUTE_GROUP_NAME, "module", module_value.expression)
         design.attributes.add(ATTRIBUTE_GROUP_NAME, "rootFilletRadius", root_fillet_radius_value.expression)
         design.attributes.add(ATTRIBUTE_GROUP_NAME, "thickness", thickness_value.expression)
-        design.attributes.add(ATTRIBUTE_GROUP_NAME, "rotation", rotation_value.expression)
         design.attributes.add(ATTRIBUTE_GROUP_NAME, "backlash", backlash_value.expression)
 
     end_time = time.time()
@@ -231,7 +222,6 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
         module_value = cast(adsk.core.ValueCommandInput, inputs.itemById("module"))
         root_fillet_radius_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("rootFilletRadius"))
         thickness_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("thickness"))
-        rotation_value = cast(adsk.core.ValueCommandInput, inputs.itemById("rotation"))
         backlash_value = cast(adsk.core.ValueCommandInput, inputs.itemById("backlash"))
 
         # name
@@ -289,12 +279,6 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
         if not thickness_value.isValid or not thickness_value.isValidExpression:
             args.areInputsValid = False
             _error_message.text = "Thickness is not valid"
-            return
-
-        # rotation
-        if not rotation_value.isValid or not rotation_value.isValidExpression:
-            args.areInputsValid = False
-            _error_message.text = "Rotation is not valid"
             return
 
         # backlash

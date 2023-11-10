@@ -15,7 +15,7 @@ class SpurGear:
             number_of_teeth_value: adsk.core.ValueCommandInput,
             module_value: adsk.core.ValueCommandInput,
             root_fillet_radius_value: adsk.core.ValueCommandInput,
-            gear_height_value: adsk.core.DistanceValueCommandInput,
+            gear_thickness_value: adsk.core.DistanceValueCommandInput,
             rotation_value: adsk.core.ValueCommandInput,
             backlash_value: adsk.core.ValueCommandInput,
             preview: bool,
@@ -35,7 +35,7 @@ class SpurGear:
 
         root_fillet_radius_expr = f"({root_fillet_radius_value.expression})"
 
-        gear_height_expr = f"({gear_height_value.expression})"
+        gear_thickness_expr = f"({gear_thickness_value.expression})"
 
         rotation_expr = f"({rotation_value.expression})"
 
@@ -88,7 +88,7 @@ class SpurGear:
         root_circle_profiles = futil.find_profiles([root_circle])
         root_circle_extrude = comp.features.extrudeFeatures.addSimple(
             root_circle_profiles[0],
-            adsk.core.ValueInput.createByString(gear_height_expr),
+            adsk.core.ValueInput.createByString(gear_thickness_expr),
             adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
         )
         if name:
@@ -221,9 +221,9 @@ class SpurGear:
             )
 
             # extrude tooth
-            tooth_feature = SpurGear.__extrude_tooth(
+            tooth_extrude = SpurGear.__extrude_tooth(
                 comp,
-                gear_height_expr,
+                gear_thickness_expr,
                 spline,
                 mirror_spline,
                 root_circle,
@@ -237,7 +237,7 @@ class SpurGear:
 
             SpurGear.__create_tooth_rotation(
                 comp,
-                tooth_feature,
+                tooth_extrude,
                 center_axis,
                 rotation_expr,
                 name
@@ -245,7 +245,7 @@ class SpurGear:
 
             # rotate tooth
             tooth_pattern = SpurGear.__create_tooth_circular_pattern(
-                comp, tooth_feature, root_circle, number_of_teeth_expr, name
+                comp, tooth_extrude, root_circle, number_of_teeth_expr, name
             )
 
             # group features into one
@@ -501,7 +501,7 @@ class SpurGear:
     @staticmethod
     def __extrude_tooth(
             comp: adsk.fusion.Component,
-            gear_height_expr: str,
+            gear_thickness_expr: str,
             spline: adsk.fusion.SketchFittedSpline,
             mirror_spline: adsk.fusion.SketchFittedSpline,
             root_circle: adsk.fusion.SketchCircle,
@@ -542,15 +542,15 @@ class SpurGear:
             )
         profiles.add(futil.find_smallest_profile(found_profiles))
 
-        tooth_feature = comp.features.extrudeFeatures.addSimple(
+        tooth_extrude = comp.features.extrudeFeatures.addSimple(
             profiles,
-            adsk.core.ValueInput.createByString(gear_height_expr),
+            adsk.core.ValueInput.createByString(gear_thickness_expr),
             adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
         )
         if name:
-            tooth_feature.name = f"{name}_tooth"
-            tooth_feature.bodies.item(0).name = f"{name}_tooth0"
-        return tooth_feature
+            tooth_extrude.name = f"{name}_tooth"
+            tooth_extrude.bodies.item(0).name = f"{name}_tooth0"
+        return tooth_extrude
 
     @staticmethod
     def __create_tooth_rotation(
