@@ -143,3 +143,47 @@ def find_names_with_prefix(design: adsk.fusion.Design, prefix: str) -> list[str]
 
 def vector3d_from_pts(pt1: adsk.core.Point3D, pt2: adsk.core.Point3D) -> adsk.core.Vector3D:
     return adsk.core.Vector3D.create(pt2.x - pt1.x, pt2.x - pt1.x, pt2.x - pt1.x)
+
+
+def attribute_value_as_value_input(attr: adsk.core.Attribute | None, default_value: str) -> adsk.core.ValueInput:
+    if attr:
+        try:
+            v = adsk.core.ValueInput.createByString(attr.value)
+            if v.isValid:
+                return v
+        except Exception:
+            pass
+    return adsk.core.ValueInput.createByString(default_value)
+
+
+def add_value_input(
+        inputs: adsk.core.CommandInputs,
+        input_id: str,
+        name: str,
+        unit_type: str,
+        attr: adsk.core.Attribute | None,
+        default_value: str
+) -> adsk.core.ValueCommandInput:
+    i = inputs.addValueInput(input_id, name, unit_type, adsk.core.ValueInput.createByString(default_value))
+    if attr:
+        try:
+            i.expression = attr.value
+        except Exception:
+            pass
+    return i
+
+
+def add_distance_value_input(
+        inputs: adsk.core.CommandInputs,
+        input_id: str,
+        name: str,
+        attr: adsk.core.Attribute | None,
+        default_value: str
+) -> adsk.core.DistanceValueCommandInput:
+    i = inputs.addDistanceValueCommandInput(input_id, name, adsk.core.ValueInput.createByString(default_value))
+    if attr:
+        try:
+            i.expression = attr.value
+        except Exception:
+            pass
+    return i

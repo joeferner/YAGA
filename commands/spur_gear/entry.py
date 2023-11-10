@@ -71,14 +71,22 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     # https://help.autodesk.com/view/fusion360/ENU/?contextId=CommandInputs
     inputs = args.command.commandInputs
     design = adsk.fusion.Design.cast(app.activeProduct)
-    default_units = design.unitsManager.defaultLengthUnits
+    angle_units = "deg"
+    length_units = design.unitsManager.defaultLengthUnits
 
     # Determine whether to use inches or millimeters as the initial default.
     global _units
-    if default_units == "in" or default_units == "ft":
+    if length_units == "in" or length_units == "ft":
         _units = "in"
     else:
         _units = "mm"
+
+    default_pressure_angle = "20 deg"
+    default_number_of_teeth = "20"
+    default_module = "5 mm"
+    default_root_fillet_radius = "1 mm"
+    default_gear_height = "5 mm"
+    default_rotation = "0 deg"
 
     # help image
     i = inputs.addImageCommandInput("gearImageMetric", "", "commands/spur_gear/resources/gear-metric.png")
@@ -91,34 +99,18 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
 
     # pressure angle
     attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "pressureAngle")
-    if attr:
-        default_value = attr.value
-    else:
-        default_value = "20 deg"
-    i = inputs.addValueInput(
-        "pressure_angle", "Pressure Angle", "deg", adsk.core.ValueInput.createByString(default_value)
-    )
+    i = futil.add_value_input(inputs, "pressureAngle", "Pressure Angle", angle_units, attr, default_pressure_angle)
     i.tooltip = "Pressure angle is the leaning angle of a gear tooth, an element determining the tooth profile."
     i.tooltipDescription = _help_pressure_angle
 
     # number of teeth
-    attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "numTeeth")
-    if attr:
-        default_value = attr.value
-    else:
-        default_value = "20"
-    i = inputs.addValueInput(
-        "number_of_teeth", "Number of Teeth", "", adsk.core.ValueInput.createByString(default_value)
-    )
+    attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "numberOfTeeth")
+    i = futil.add_value_input(inputs, "numberOfTeeth", "Number of Teeth", "", attr, default_number_of_teeth)
     i.minimumValue = 1
 
     # module
     attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "module")
-    if attr:
-        default_value = attr.value
-    else:
-        default_value = "5 mm"
-    i = inputs.addValueInput("module", "Module", "mm", adsk.core.ValueInput.createByString(default_value))
+    i = futil.add_value_input(inputs, "module", "Module", length_units, attr, default_module)
     i.tooltip = (
         "The unit of size that indicates how big or small a gear is. It is the ratio of the reference "
         "diameter of the gear divided by the number of teeth. The larger the module the larger the gear."
@@ -126,35 +118,17 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
 
     # root fillet radius
     attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "rootFilletRadius")
-    if attr:
-        default_value = attr.value
-    else:
-        default_value = "1 mm"
-    i = inputs.addValueInput(
-        "rootFilletRadius", "Root Fillet Radius", "mm", adsk.core.ValueInput.createByString(default_value)
-    )
+    i = futil.add_value_input(inputs, "rootFilletRadius", "Root Fillet Radius", length_units, attr, default_root_fillet_radius)
     i.tooltip = "The small radius that connects the tooth profile to the root circle."
 
     # thickness
     attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "thickness")
-    if attr:
-        default_value = attr.value
-    else:
-        default_value = "5 mm"
-    i = inputs.addDistanceValueCommandInput(
-        "thickness", "Gear Height", adsk.core.ValueInput.createByString(default_value)
-    )
+    i = futil.add_distance_value_input(inputs, "thickness", "Gear Height", attr, default_gear_height)
     i.setManipulator(adsk.core.Point3D.create(0, 0, 0), adsk.core.Vector3D.create(0, 0, 1))
 
-    # thickness
+    # rotation
     attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "rotation")
-    if attr:
-        default_value = attr.value
-    else:
-        default_value = "0 deg"
-    i = inputs.addValueInput(
-        "rotation", "Rotation", "deg", adsk.core.ValueInput.createByString(default_value)
-    )
+    i = futil.add_value_input(inputs, "rotation", "Rotation", angle_units, attr, default_rotation)
     i.tooltip = "Rotation applied to the whole gear, this can be used to mesh multiple gears together."
 
     # error message
@@ -192,8 +166,8 @@ def command_run(args: adsk.core.CommandEventArgs, preview: bool):
     design = adsk.fusion.Design.cast(app.activeProduct)
     inputs = args.command.commandInputs
     name_value = cast(adsk.core.StringValueCommandInput, inputs.itemById("name"))
-    pressure_angle_value = cast(adsk.core.ValueCommandInput, inputs.itemById("pressure_angle"))
-    number_of_teeth_value = cast(adsk.core.ValueCommandInput, inputs.itemById("number_of_teeth"))
+    pressure_angle_value = cast(adsk.core.ValueCommandInput, inputs.itemById("pressureAngle"))
+    number_of_teeth_value = cast(adsk.core.ValueCommandInput, inputs.itemById("numberOfTeeth"))
     module_value = cast(adsk.core.ValueCommandInput, inputs.itemById("module"))
     root_fillet_radius_value = cast(adsk.core.ValueCommandInput, inputs.itemById("rootFilletRadius"))
     thickness_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("thickness"))
@@ -218,8 +192,9 @@ def command_run(args: adsk.core.CommandEventArgs, preview: bool):
 
     if not preview:
         design.attributes.add(ATTRIBUTE_GROUP_NAME, "pressureAngle", pressure_angle_value.expression)
-        design.attributes.add(ATTRIBUTE_GROUP_NAME, "numTeeth", number_of_teeth_value.expression)
+        design.attributes.add(ATTRIBUTE_GROUP_NAME, "numberOfTeeth", number_of_teeth_value.expression)
         design.attributes.add(ATTRIBUTE_GROUP_NAME, "module", module_value.expression)
+        design.attributes.add(ATTRIBUTE_GROUP_NAME, "rootFilletRadius", root_fillet_radius_value.expression)
         design.attributes.add(ATTRIBUTE_GROUP_NAME, "thickness", thickness_value.expression)
         design.attributes.add(ATTRIBUTE_GROUP_NAME, "rotation", rotation_value.expression)
 
@@ -239,13 +214,15 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
     try:
         inputs = args.inputs
         design = adsk.fusion.Design.cast(app.activeProduct)
-        args.areInputsValid = True
 
         name_value = cast(adsk.core.StringValueCommandInput, inputs.itemById("name"))
-        pressure_angle_value = cast(adsk.core.AngleValueCommandInput, inputs.itemById("pressure_angle"))
-        number_of_teeth_value = cast(adsk.core.ValueCommandInput, inputs.itemById("number_of_teeth"))
-        module_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("module"))
+        pressure_angle_value = cast(adsk.core.ValueCommandInput, inputs.itemById("pressureAngle"))
+        number_of_teeth_value = cast(adsk.core.ValueCommandInput, inputs.itemById("numberOfTeeth"))
+        module_value = cast(adsk.core.ValueCommandInput, inputs.itemById("module"))
         root_fillet_radius_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("rootFilletRadius"))
+        thickness_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("thickness"))
+        rotation_value = cast(adsk.core.ValueCommandInput, inputs.itemById("rotation"))
+
 
         # name
         if len(name_value.value) == 0:
@@ -256,6 +233,7 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
             args.areInputsValid = False
             _error_message.text = "Name already found"
             return
+        name_value.isValueError = False
 
         # verify pressure angle
         if pressure_angle_value.value < math.radians(0):
@@ -266,27 +244,61 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
             args.areInputsValid = False
             _error_message.text = "Pressure angle must be less than than 45 degrees"
             return
+        if not pressure_angle_value.isValid or not pressure_angle_value.isValidExpression:
+            args.areInputsValid = False
+            _error_message.text = "Pressure angle is not valid"
+            return
 
         # verify pressure angle
         if number_of_teeth_value.value < 1:
             args.areInputsValid = False
-            _error_message.text = "Must have at least 1 tooth"
+            _error_message.text = "Number of teeth must be greater than 0"
+            return
+        if not number_of_teeth_value.isValid or not number_of_teeth_value.isValidExpression:
+            args.areInputsValid = False
+            _error_message.text = "Number of teeth is not valid"
             return
 
+        # root fillet radius
+        if not root_fillet_radius_value.isValid or not root_fillet_radius_value.isValidExpression:
+            args.areInputsValid = False
+            _error_message.text = "Root fillet radius is not valid"
+            return
+
+        # module
+        if not module_value.isValid or not module_value.isValidExpression:
+            args.areInputsValid = False
+            _error_message.text = "Module is not valid"
+            return
+        
+        # thickness
+        if not thickness_value.isValid or not thickness_value.isValidExpression:
+            args.areInputsValid = False
+            _error_message.text = "Thickness is not valid"
+            return
+
+        # rotation
+        if not rotation_value.isValid or not rotation_value.isValidExpression:
+            args.areInputsValid = False
+            _error_message.text = "Rotation is not valid"
+            return
+
+        # calculations
         pitch = math.pi * module_value.value
         tooth_thickness = pitch / 2
         if root_fillet_radius_value.value > tooth_thickness * 0.4:
             args.areInputsValid = False
             max_value = design.unitsManager.formatInternalValue(tooth_thickness * 0.4, _units, True)
-            _error_message.text = f"The root fillet radius is too large. It must be less than {max_value}"
+            _error_message.text = f"Root fillet radius is too large. It must be less than {max_value}"
             return
-
+        
         # prevent change handler from firing over and over again
         if _error_message.text != "":
             _error_message.text = ""
+        args.areInputsValid = True
     except Exception:
         if ui:
-            ui.messageBox('Failed:\n{}'.format(traceback.format_exc()))
+            ui.messageBox("Failed:\n{}".format(traceback.format_exc()))
 
 
 # This event handler is called when the command terminates.
