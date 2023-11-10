@@ -87,6 +87,7 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     default_root_fillet_radius = "1 mm"
     default_gear_height = "5 mm"
     default_rotation = "0 deg"
+    default_backlash = "0 mm"
 
     # help image
     i = inputs.addImageCommandInput("gearImageMetric", "", "commands/spur_gear/resources/gear-metric.png")
@@ -118,7 +119,8 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
 
     # root fillet radius
     attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "rootFilletRadius")
-    i = futil.add_value_input(inputs, "rootFilletRadius", "Root Fillet Radius", length_units, attr, default_root_fillet_radius)
+    i = futil.add_value_input(inputs, "rootFilletRadius", "Root Fillet Radius", length_units, attr,
+                              default_root_fillet_radius)
     i.tooltip = "The small radius that connects the tooth profile to the root circle."
 
     # thickness
@@ -130,6 +132,11 @@ def command_created(args: adsk.core.CommandCreatedEventArgs):
     attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "rotation")
     i = futil.add_value_input(inputs, "rotation", "Rotation", angle_units, attr, default_rotation)
     i.tooltip = "Rotation applied to the whole gear, this can be used to mesh multiple gears together."
+
+    # backlash
+    attr = design.attributes.itemByName(ATTRIBUTE_GROUP_NAME, "backlash")
+    i = futil.add_value_input(inputs, "backlash", "Backlash", length_units, attr, default_backlash)
+    i.tooltip = "The amount of clearance between mated gear teeth."
 
     # error message
     global _error_message
@@ -172,6 +179,7 @@ def command_run(args: adsk.core.CommandEventArgs, preview: bool):
     root_fillet_radius_value = cast(adsk.core.ValueCommandInput, inputs.itemById("rootFilletRadius"))
     thickness_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("thickness"))
     rotation_value = cast(adsk.core.ValueCommandInput, inputs.itemById("rotation"))
+    backlash_value = cast(adsk.core.ValueCommandInput, inputs.itemById("backlash"))
 
     if preview:
         name = f"preview_{name_value.value}"
@@ -186,6 +194,7 @@ def command_run(args: adsk.core.CommandEventArgs, preview: bool):
         root_fillet_radius_value=root_fillet_radius_value,
         gear_height_value=thickness_value,
         rotation_value=rotation_value,
+        backlash_value=backlash_value,
         name=name,
         preview=preview,
     )
@@ -197,6 +206,7 @@ def command_run(args: adsk.core.CommandEventArgs, preview: bool):
         design.attributes.add(ATTRIBUTE_GROUP_NAME, "rootFilletRadius", root_fillet_radius_value.expression)
         design.attributes.add(ATTRIBUTE_GROUP_NAME, "thickness", thickness_value.expression)
         design.attributes.add(ATTRIBUTE_GROUP_NAME, "rotation", rotation_value.expression)
+        design.attributes.add(ATTRIBUTE_GROUP_NAME, "backlash", backlash_value.expression)
 
     end_time = time.time()
     futil.log(f"create took {end_time - start_time}")
@@ -222,7 +232,7 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
         root_fillet_radius_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("rootFilletRadius"))
         thickness_value = cast(adsk.core.DistanceValueCommandInput, inputs.itemById("thickness"))
         rotation_value = cast(adsk.core.ValueCommandInput, inputs.itemById("rotation"))
-
+        backlash_value = cast(adsk.core.ValueCommandInput, inputs.itemById("backlash"))
 
         # name
         if len(name_value.value) == 0:
@@ -270,7 +280,7 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
             args.areInputsValid = False
             _error_message.text = "Module is not valid"
             return
-        
+
         # thickness
         if not thickness_value.isValid or not thickness_value.isValidExpression:
             args.areInputsValid = False
@@ -283,6 +293,12 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
             _error_message.text = "Rotation is not valid"
             return
 
+        # backlash
+        if not backlash_value.isValid or not backlash_value.isValidExpression:
+            args.areInputsValid = False
+            _error_message.text = "Backlash is not valid"
+            return
+
         # calculations
         pitch = math.pi * module_value.value
         tooth_thickness = pitch / 2
@@ -291,7 +307,7 @@ def command_validate_input(args: adsk.core.ValidateInputsEventArgs):
             max_value = design.unitsManager.formatInternalValue(tooth_thickness * 0.4, _units, True)
             _error_message.text = f"Root fillet radius is too large. It must be less than {max_value}"
             return
-        
+
         # prevent change handler from firing over and over again
         if _error_message.text != "":
             _error_message.text = ""

@@ -17,6 +17,7 @@ class SpurGear:
             root_fillet_radius_value: adsk.core.ValueCommandInput,
             gear_height_value: adsk.core.DistanceValueCommandInput,
             rotation_value: adsk.core.ValueCommandInput,
+            backlash_value: adsk.core.ValueCommandInput,
             preview: bool,
             name: str | None,
     ):
@@ -36,6 +37,10 @@ class SpurGear:
 
         gear_height_expr = f"({gear_height_value.expression})"
 
+        rotation_expr = f"({rotation_value.expression})"
+
+        backlash_expr = f"({backlash_value.expression})"
+
         # dedendum (hf)
         dedendum = 1.25 * module
         dedendum_expr = f"( 1.25 * {module_expr} )"
@@ -48,8 +53,6 @@ class SpurGear:
         tooth_thickness = pitch / 2
         tooth_thickness_expr = f"( {pitch_expr} / 2 )"
         half_tooth_thickness_expr = f"( {tooth_thickness_expr} / 2 )"
-
-        rotation_expr = f"({rotation_value.expression})"
 
         # create component
         comp_occurrence = design.rootComponent.occurrences.addNewComponent(adsk.core.Matrix3D.create())
@@ -67,14 +70,19 @@ class SpurGear:
         # reference/pitch circle (d)
         pitch_diameter = number_of_teeth * module
         pitch_diameter_expr = f"( {number_of_teeth_expr} * {module_expr} )"
-        SpurGear.__create_pitch_circle(sketch_circles, center_point, pitch_diameter, pitch_diameter_expr, name)
-        if name:
-            pitch_diameter_expr = f"{name}_pitchDiameter"
+        _, pitch_diameter_expr = SpurGear.__create_pitch_circle(
+            sketch_circles,
+            center_point,
+            pitch_diameter,
+            pitch_diameter_expr,
+            name
+        )
+        backlash_angle_expr = f"(({backlash_expr} / 4 / (PI * {pitch_diameter_expr})) * 360 deg)"
 
         # root circle (df)
         root_diameter = pitch_diameter - (2 * dedendum)
         root_diameter_expr = f"( {pitch_diameter_expr} - (2 * {dedendum_expr}) )"
-        root_circle = SpurGear.__create_root_circle(
+        root_circle, root_diameter_expr = SpurGear.__create_root_circle(
             sketch_circles, center_point, root_diameter, root_diameter_expr, name
         )
         root_circle_profiles = futil.find_profiles([root_circle])
@@ -86,25 +94,30 @@ class SpurGear:
         if name:
             root_circle_extrude.name = f"{name}_circle"
             root_circle_extrude.bodies.item(0).name = f"{name}_circle"
-            root_diameter_expr = f"{name}_rootDiameter"
 
         # base circle (db)
         base_diameter = pitch_diameter * math.cos(pressure_angle)
         base_diameter_expr = f"( {pitch_diameter_expr} * cos({pressure_angle_expr}) )"
-        base_circle = SpurGear.__create_base_circle(
-            sketch_circles, center_point, base_diameter, base_diameter_expr, root_diameter, name
+        base_circle, base_diameter_expr = SpurGear.__create_base_circle(
+            sketch_circles,
+            center_point,
+            base_diameter,
+            base_diameter_expr,
+            root_diameter,
+            name
         )
-        if name:
-            base_diameter_expr = f"{name}_baseDiameter"
 
         # tip/outside circle (da)
         outside_diameter = (pitch_diameter + 2) * module
         outside_diameter_expr = f"( {pitch_diameter_expr} + (2 * {module_expr}) )"
-        outside_circle = SpurGear.__create_outside_circle(
-            sketch_circles, center_point, outside_diameter, outside_diameter_expr, root_diameter, name
+        outside_circle, outside_diameter_expr = SpurGear.__create_outside_circle(
+            sketch_circles,
+            center_point,
+            outside_diameter,
+            outside_diameter_expr,
+            root_diameter,
+            name
         )
-        if name:
-            outside_diameter_expr = f"{name}_outsideDiameter"
 
         sketch_circles.isComputeDeferred = False
 
@@ -138,7 +151,7 @@ class SpurGear:
             )
 
             involute_curve_mirror_offset_angle_expr = (
-                f"( ({half_tooth_thickness_expr} / (PI * {root_diameter_expr})) * 360 deg )"
+                f"( ({half_tooth_thickness_expr} / (PI * {root_diameter_expr})) * 360 deg - {backlash_angle_expr})"
             )
 
             tangent_line_count = 10
@@ -174,12 +187,10 @@ class SpurGear:
             dedendum_line_b = SpurGear.__create_dedendum_line(sketch_tooth_profile, center_point, mirror_spline)
 
             # draw root fillet radius
-            root_fillet_radius_a = SpurGear.__create_root_fillet_radius(
+            root_fillet_radius_a, root_fillet_radius_expr = SpurGear.__create_root_fillet_radius(
                 sketch_tooth_profile, dedendum_line_a, root_circle, root_fillet_radius_expr, tooth_thickness, name
             )
-            if name:
-                root_fillet_radius_expr = f"{name}_rootFilletRadius"
-            root_fillet_radius_b = SpurGear.__create_root_fillet_radius(
+            root_fillet_radius_b, _ = SpurGear.__create_root_fillet_radius(
                 sketch_tooth_profile, dedendum_line_b, root_circle, root_fillet_radius_expr, tooth_thickness, name
             )
 
@@ -253,7 +264,7 @@ class SpurGear:
             root_diameter: float,
             root_diameter_expr: str,
             name: str | None,
-    ) -> adsk.fusion.SketchCircle:
+    ) -> [adsk.fusion.SketchCircle, str]:
         root_circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(
             adsk.core.Point3D.create(0, 0, 0), root_diameter / 2.0
         )
@@ -265,7 +276,7 @@ class SpurGear:
         d.parameter.expression = root_diameter_expr
         if name:
             d.parameter.name = f"{name}_rootDiameter"
-        return root_circle
+        return root_circle, d.parameter.name
 
     @staticmethod
     def __create_base_circle(
@@ -275,7 +286,7 @@ class SpurGear:
             base_diameter_expr: str,
             root_diameter: float,
             name: str | None,
-    ) -> adsk.fusion.SketchCircle:
+    ) -> [adsk.fusion.SketchCircle, str]:
         base_circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(
             adsk.core.Point3D.create(0, 0, 0), base_diameter / 2.0
         )
@@ -288,7 +299,7 @@ class SpurGear:
         d.parameter.expression = base_diameter_expr
         if name:
             d.parameter.name = f"{name}_baseDiameter"
-        return base_circle
+        return base_circle, d.parameter.name
 
     @staticmethod
     def __create_pitch_circle(
@@ -297,7 +308,7 @@ class SpurGear:
             pitch_diameter: float,
             pitch_diameter_expr: str,
             name: str | None,
-    ) -> adsk.fusion.SketchCircle:
+    ) -> [adsk.fusion.SketchCircle, str]:
         pitch_circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(
             adsk.core.Point3D.create(0, 0, 0), pitch_diameter / 2.0
         )
@@ -310,7 +321,7 @@ class SpurGear:
         d.parameter.expression = pitch_diameter_expr
         if name:
             d.parameter.name = f"{name}_pitchDiameter"
-        return pitch_circle
+        return pitch_circle, d.parameter.name
 
     @staticmethod
     def __create_outside_circle(
@@ -320,7 +331,7 @@ class SpurGear:
             outside_diameter_expr: str,
             root_diameter: float,
             name: str | None,
-    ) -> adsk.fusion.SketchCircle:
+    ) -> [adsk.fusion.SketchCircle, str]:
         outside_circle = sketch.sketchCurves.sketchCircles.addByCenterRadius(
             adsk.core.Point3D.create(0, 0, 0), outside_diameter / 2.0
         )
@@ -333,7 +344,7 @@ class SpurGear:
         d.parameter.expression = outside_diameter_expr
         if name:
             d.parameter.name = f"{name}_outsideDiameter"
-        return outside_circle
+        return outside_circle, d.parameter.name
 
     @staticmethod
     def __create_involute_curve_mirror_line(
@@ -590,7 +601,7 @@ class SpurGear:
             root_fillet_radius_expr: str,
             tooth_thickness: float,
             name: str | None,
-    ) -> adsk.fusion.SketchArc:
+    ) -> [adsk.fusion.SketchArc, str]:
         x = root_circle.boundingBox.maxPoint.x
         if dedendum_line.boundingBox.maxPoint.y > 0:
             arc = sketch.sketchCurves.sketchArcs.addByThreePoints(
@@ -620,4 +631,4 @@ class SpurGear:
         sketch.geometricConstraints.addTangent(root_circle, arc)
         sketch.geometricConstraints.addTangent(dedendum_line, arc)
 
-        return arc
+        return arc, d.parameter.name
