@@ -1,4 +1,3 @@
-import math
 import adsk.core
 import adsk.fusion
 
@@ -20,16 +19,12 @@ class Rack:
         design = adsk.fusion.Design.cast(app.activeProduct)
         units_mgr = app.activeProduct.unitsManager
 
-        pressure_angle = units_mgr.evaluateExpression(pressure_angle_value.expression, "deg")
         pressure_angle_expr = f"({pressure_angle_value.expression})"
 
-        number_of_teeth = units_mgr.evaluateExpression(number_of_teeth_value.expression, "")
         number_of_teeth_expr = f"({number_of_teeth_value.expression})"
 
-        module = units_mgr.evaluateExpression(module_value.expression, "cm")
         module_expr = f"({module_value.expression})"
 
-        root_fillet_radius = root_fillet_radius_value.value
         root_fillet_radius_expr = f"({root_fillet_radius_value.expression})"
 
         gear_thickness_expr = f"({gear_thickness_value.expression})"
@@ -37,15 +32,13 @@ class Rack:
         backlash_expr = f"({backlash_value.expression})"
 
         # dedendum (hf)
-        dedendum = 1.25 * module
         dedendum_expr = f"( 1.25 * {module_expr} )"
 
         # pitch (p) - Pitch is the distance between corresponding points on adjacent teeth
-        pitch = math.pi * module
         pitch_expr = f"( PI * {module_expr} )"
 
         # tooth thickness (s)
-        tooth_thickness_expr = f"( {pitch_expr} / 2 )"
+        tooth_thickness_expr = f"( ( {pitch_expr} / 2 ) - {backlash_expr})"
 
         # height
         height_expr = f"({module_expr} + {dedendum_expr})"
