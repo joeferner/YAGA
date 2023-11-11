@@ -58,8 +58,12 @@ class Rack:
             dedendum_expr,
             number_of_teeth_expr,
             pitch_expr,
+            bottom_box_height_expr,
             name
         )
+
+        # extrude bottom box
+        bottom_box_extrude = Rack.__extrude_bottom_box(comp, construction_sketch, gear_thickness_expr, name)
 
         # tooth sketch
         tooth_sketch = Rack.__create_tooth_sketch(
@@ -77,12 +81,14 @@ class Rack:
         # extrude tooth
         tooth_extrude = Rack.__extrude_tooth(comp, tooth_sketch, gear_thickness_expr, name)
 
-        if not preview:
-            construction_sketch.isVisible = False
+        # combine bottom and tooth to make a better pattern
+        bottom_tooth_combine = Rack.__combine_bottom_and_tooth(comp, bottom_box_extrude, tooth_extrude, name)
 
         # linear pattern for number of teeth
         tooth_pattern = Rack.__create_tooth_linear_pattern(
-            comp, tooth_extrude,
+            comp,
+            tooth_extrude,
+            bottom_tooth_combine,
             direction_one_entity=comp.xConstructionAxis,
             direction_two_entity=comp.yConstructionAxis,
             number_of_teeth_expr=number_of_teeth_expr,
@@ -90,12 +96,13 @@ class Rack:
             name=name
         )
 
-        # group features into one
-        group = design.timeline.timelineGroups.add(
-            comp_occurrence.timelineObject.index, tooth_pattern.timelineObject.index
-        )
-        if name:
-            group.name = name
+        if not preview:
+            # group features into one
+            group = design.timeline.timelineGroups.add(
+                comp_occurrence.timelineObject.index, tooth_pattern.timelineObject.index
+            )
+            if name:
+                group.name = name
 
         return
 
@@ -105,6 +112,7 @@ class Rack:
             dedendum_expr: str,
             number_of_teeth_expr: str,
             pitch_expr: str,
+            bottom_box_height_expr: str,
             name: str | None
     ) -> adsk.fusion.Sketch:
         sketch_plane = comp.xYConstructionPlane
@@ -113,6 +121,8 @@ class Rack:
             sketch.name = f"{name}_construction"
         center_point = sketch.originPoint
         sketch.isComputeDeferred = True
+
+        length_expr = f"{number_of_teeth_expr} * {pitch_expr}"
 
         pitch_line = sketch.sketchCurves.sketchLines.addByTwoPoints(
             adsk.core.Point3D.create(1, 10, 0),
@@ -138,9 +148,41 @@ class Rack:
             adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation,
             adsk.core.Point3D.create(1, 10, 0),
         )
-        d.parameter.expression = f"{number_of_teeth_expr} * {pitch_expr}"
+        d.parameter.expression = length_expr
         if name:
             d.parameter.name = f"{name}_pitchConstructionLength"
+
+        # draw body
+        body_rect = sketch.sketchCurves.sketchLines.addTwoPointRectangle(
+            adsk.core.Point3D.create(10, -10, 0),
+            adsk.core.Point3D.create(20, -20, 0),
+        )
+        sketch.geometricConstraints.addCoincident(center_point, body_rect[0].startSketchPoint)
+
+        d = sketch.sketchDimensions.addDistanceDimension(
+            body_rect[0].startSketchPoint,
+            body_rect[0].endSketchPoint,
+            adsk.fusion.DimensionOrientations.VerticalDimensionOrientation,
+            adsk.core.Point3D.create(1, 10, 0),
+        )
+        d.parameter.expression = bottom_box_height_expr
+        if name:
+            d.parameter.name = f"{name}_bottomHeight"
+
+        d = sketch.sketchDimensions.addDistanceDimension(
+            body_rect[1].startSketchPoint,
+            body_rect[1].endSketchPoint,
+            adsk.fusion.DimensionOrientations.HorizontalDimensionOrientation,
+            adsk.core.Point3D.create(1, 10, 0),
+        )
+        d.parameter.expression = length_expr
+        if name:
+            d.parameter.name = f"{name}_bottomLength"
+
+        sketch.geometricConstraints.addVertical(body_rect[0])
+        sketch.geometricConstraints.addHorizontal(body_rect[1])
+        sketch.geometricConstraints.addVertical(body_rect[2])
+        sketch.geometricConstraints.addHorizontal(body_rect[3])
 
         sketch.isComputeDeferred = False
 
@@ -351,8 +393,30 @@ class Rack:
         return sketch
 
     @staticmethod
+    def __extrude_bottom_box(
+            comp: adsk.fusion.Component,
+            sketch: adsk.fusion.Sketch,
+            gear_thickness_expr: str,
+            name: str
+    ) -> adsk.fusion.ExtrudeFeature:
+        profile = sketch.profiles[0]
+
+        rack_feature = comp.features.extrudeFeatures.addSimple(
+            profile,
+            adsk.core.ValueInput.createByString(gear_thickness_expr),
+            adsk.fusion.FeatureOperations.NewBodyFeatureOperation,
+        )
+        if name:
+            rack_feature.name = f"{name}_bottom"
+            rack_feature.bodies.item(0).name = f"{name}_bottom"
+        return rack_feature
+
+    @staticmethod
     def __extrude_tooth(
-            comp: adsk.fusion.Component, sketch: adsk.fusion.Sketch, gear_thickness_expr: str, name: str
+            comp: adsk.fusion.Component,
+            sketch: adsk.fusion.Sketch,
+            gear_thickness_expr: str,
+            name: str
     ) -> adsk.fusion.ExtrudeFeature:
         profile = sketch.profiles[0]
 
@@ -367,9 +431,25 @@ class Rack:
         return rack_feature
 
     @staticmethod
+    def __combine_bottom_and_tooth(
+            comp: adsk.fusion.Component,
+            bottom: adsk.fusion.ExtrudeFeature,
+            tooth: adsk.fusion.Feature,
+            name: str | None
+    ):
+        coll = adsk.core.ObjectCollection.create()
+        coll.add(tooth.bodies[0])
+        i = comp.features.combineFeatures.createInput(bottom.bodies[0], coll)
+        c = comp.features.combineFeatures.add(i)
+        if name:
+            c.name = f"{name}_combineToothBody"
+        return c
+
+    @staticmethod
     def __create_tooth_linear_pattern(
             comp: adsk.fusion.Component,
             tooth_extrude: adsk.fusion.ExtrudeFeature,
+            bottom_tooth_combine: adsk.fusion.CombineFeature,
             direction_one_entity: adsk.core.Base,
             direction_two_entity: adsk.core.Base,
             number_of_teeth_expr: str,
@@ -377,7 +457,8 @@ class Rack:
             name: str | None,
     ) -> adsk.fusion.RectangularPatternFeature:
         entities = adsk.core.ObjectCollection.create()
-        entities.add(tooth_extrude.bodies[0])
+        entities.add(tooth_extrude)
+        entities.add(bottom_tooth_combine)
         feature_input = comp.features.rectangularPatternFeatures.createInput(
             entities,
             direction_one_entity,

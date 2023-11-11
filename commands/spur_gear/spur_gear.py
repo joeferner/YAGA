@@ -235,22 +235,35 @@ class SpurGear:
                 name,
             )
 
-            SpurGear.__create_tooth_rotation(
+            # combine to create single body when doing circular pattern
+            combined_tooth_and_body = SpurGear.__combine_tooth_with_body(
+                comp,
+                root_circle_extrude,
+                tooth_extrude,
+                name
+            )
+
+            tooth_pattern = SpurGear.__create_tooth_circular_pattern(
                 comp,
                 tooth_extrude,
+                combined_tooth_and_body,
+                root_circle,
+                number_of_teeth_expr,
+                name
+            )
+
+            # rotate gear
+            rotation = SpurGear.__create_rotation(
+                comp,
+                combined_tooth_and_body,
                 center_axis,
                 rotation_expr,
                 name
             )
 
-            # rotate tooth
-            tooth_pattern = SpurGear.__create_tooth_circular_pattern(
-                comp, tooth_extrude, root_circle, number_of_teeth_expr, name
-            )
-
             # group features into one
             group = design.timeline.timelineGroups.add(
-                comp_occurrence.timelineObject.index, tooth_pattern.timelineObject.index
+                comp_occurrence.timelineObject.index, rotation.timelineObject.index
             )
             if name:
                 group.name = name
@@ -553,9 +566,9 @@ class SpurGear:
         return tooth_extrude
 
     @staticmethod
-    def __create_tooth_rotation(
+    def __create_rotation(
             comp: adsk.fusion.Component,
-            tooth_feature: adsk.fusion.Feature,
+            combined_tooth_and_body: adsk.fusion.CombineFeature,
             center_axis: adsk.fusion.ConstructionAxis,
             rotation_expr: str,
             name: str | None,
@@ -563,7 +576,7 @@ class SpurGear:
         occurrence = comp.parentDesign.rootComponent.occurrencesByComponent(comp)[0]
         center_axis = center_axis.createForAssemblyContext(occurrence)
         move_create_input = adsk.core.ObjectCollection.create()
-        move_create_input.add(tooth_feature.bodies[0])
+        move_create_input.add(combined_tooth_and_body.bodies[0])
         move_input = comp.features.moveFeatures.createInput2(move_create_input)
         move_input.defineAsRotate(center_axis, adsk.core.ValueInput.createByString(rotation_expr))
         feature = comp.features.moveFeatures.add(move_input)
@@ -573,15 +586,32 @@ class SpurGear:
         return feature
 
     @staticmethod
+    def __combine_tooth_with_body(
+            comp: adsk.fusion.Component,
+            body: adsk.fusion.ExtrudeFeature,
+            tooth: adsk.fusion.Feature,
+            name: str | None,
+    ) -> adsk.fusion.CombineFeature:
+        coll = adsk.core.ObjectCollection.create()
+        coll.add(tooth.bodies[0])
+        i = comp.features.combineFeatures.createInput(body.bodies[0], coll)
+        c = comp.features.combineFeatures.add(i)
+        if name:
+            c.name = f"{name}_combineToothBody"
+        return c
+
+    @staticmethod
     def __create_tooth_circular_pattern(
             comp: adsk.fusion.Component,
             tooth_feature: adsk.fusion.Feature,
+            combined_tooth_and_body: adsk.fusion.CombineFeature,
             root_circle: adsk.fusion.SketchCircle,
             number_of_teeth_expr: str,
             name: str | None,
     ) -> adsk.fusion.CircularPatternFeature:
         entities = adsk.core.ObjectCollection.create()
-        entities.add(tooth_feature.bodies[0])
+        entities.add(tooth_feature)
+        entities.add(combined_tooth_and_body)
         axis = root_circle
         feature_input = comp.features.circularPatternFeatures.createInput(entities, axis)
         feature_input.quantity = adsk.core.ValueInput.createByString(number_of_teeth_expr)
